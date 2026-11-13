@@ -112,12 +112,19 @@ describe('game store: rules for starting', () => {
 })
 
 describe('game store: settings', () => {
+  it('turns auto move on by default and saves it alongside the rest', () => {
+    expect(store().settings.autoMove).toBe(true)
+    store().updateSettings({ autoMove: false })
+    expect(JSON.parse(window.localStorage.getItem('ludo:settings')!)).toMatchObject({ autoMove: false })
+    store().updateSettings({ autoMove: true })
+  })
+
   it('turns auto roll and comeback dice on by default and saves changes', () => {
     expect(store().settings.autoRoll).toBe(true)
     expect(store().settings.comebackDice).toBe(true)
     store().updateSettings({ autoRoll: false })
-    expect(store().settings).toEqual({ autoRoll: false, comebackDice: true })
-    expect(JSON.parse(window.localStorage.getItem('ludo:settings')!)).toEqual({ autoRoll: false, comebackDice: true })
+    expect(store().settings).toEqual({ autoRoll: false, autoMove: true, comebackDice: true })
+    expect(JSON.parse(window.localStorage.getItem('ludo:settings')!)).toEqual({ autoRoll: false, autoMove: true, comebackDice: true })
     store().updateSettings({ autoRoll: true })
   })
 })

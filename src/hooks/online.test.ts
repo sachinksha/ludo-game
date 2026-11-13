@@ -19,6 +19,8 @@ import { TIMING, useLudoGame } from './useLudoGame'
 
 /** Die face 3, and bot/auto picks that are always the first option. */
 const THREE = () => 0.45
+/** Die face 6. */
+const SIX = () => 0.99
 
 /** Runs pending microtasks (network delivery) without touching fake timers. */
 async function tick() {
@@ -84,6 +86,25 @@ describe('hosting', () => {
     expect(received).toEqual([{ action: { type: 'roll', value: 3, actor: 'human' }, seq: 0 }])
     act(() => vi.advanceTimersByTime(TIMING.ROLL_MS + 10))
     expect(useGameStore.getState().actions).toEqual([{ type: 'roll', value: 3, actor: 'human' }])
+  })
+
+  it('leaves a guest’s forced move to the guest’s own device', async () => {
+    const { guest, received } = await hostWithGuest()
+    renderHook(() => useLudoGame(SIX))
+    guest.sendIntent(0, { action: 'roll' })
+    await act(tick)
+    await act(async () => {
+      vi.advanceTimersByTime(10)
+      await tick()
+    })
+    act(() => vi.advanceTimersByTime(TIMING.ROLL_MS + 10))
+    // A six with every piece in base: all four moves are equivalent, but the host does not play it.
+    await act(async () => {
+      vi.advanceTimersByTime(TIMING.SETTLE_MS + TIMING.AUTO_MOVE_MS + 2000)
+      await tick()
+    })
+    expect(useGameStore.getState().game!.phase).toBe('move')
+    expect(received).toHaveLength(1)
   })
 
   it('ignores a stale intent', async () => {
@@ -174,6 +195,30 @@ describe('joining as a guest', () => {
     expect(useGameStore.getState().game!.players[0]).toMatchObject({ name: 'Bot 1', kind: 'bot' })
     act(() => vi.advanceTimersByTime(TIMING.NOTICE_MS + 10))
     expect(result.current.notice).toBeNull()
+  })
+
+  it('sends a forced move for its own seat when auto move is on, and waits when it is off', async () => {
+    const { host, intents } = await joined()
+    renderHook(() => useLudoGame(THREE))
+    // Red passes with a 3; yellow (this guest) gets a 6 with every piece in base.
+    act(() => host.announce({ type: 'roll', value: 3, actor: 'human' }))
+    await act(tick)
+    act(() => vi.advanceTimersByTime(10))
+    act(() => vi.advanceTimersByTime(TIMING.ROLL_MS + 10))
+    act(() => vi.advanceTimersByTime(TIMING.SETTLE_MS + 10))
+    act(() => useGameStore.getState().updateSettings({ autoMove: false }))
+    act(() => host.announce({ type: 'roll', value: 6, actor: 'human' }))
+    await act(tick)
+    act(() => vi.advanceTimersByTime(10))
+    act(() => vi.advanceTimersByTime(TIMING.ROLL_MS + 10))
+    act(() => vi.advanceTimersByTime(TIMING.SETTLE_MS + TIMING.AUTO_MOVE_MS + 1000))
+    await act(tick)
+    expect(intents).toEqual([])
+
+    act(() => useGameStore.getState().updateSettings({ autoMove: true }))
+    act(() => vi.advanceTimersByTime(TIMING.AUTO_MOVE_MS + 10))
+    await act(tick)
+    expect(intents).toEqual([{ color: 'yellow', seq: 2, intent: { action: 'move', tokenId: expect.any(Number) } }])
   })
 
   it('asks for a full copy when it notices a missing action', async () => {

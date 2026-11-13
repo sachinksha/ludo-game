@@ -181,7 +181,7 @@ Players of this game now expect these. Tick them off in the next game, adapting 
 
 ### During play
 - [ ] **Auto roll** switch, on by default, persisted. Never auto-choose a real decision.
-- [ ] **Automatic moves** only when every option is equivalent.
+- [ ] **Auto move** switch, on by default, persisted: play forced moves (only one option, or all options equivalent) automatically. Online, each device automates only its own seat by sending intents; the host never auto-plays a remote human's move.
 - [ ] **Bot personalities** (here balanced/hunter/guardian/racer) assigned randomly per game, ±15% weight jitter, small noise on close calls, and always take obvious wins/captures. The persona label is shown on the bot's panel.
 - [ ] **Comeback assist** for long droughts: fair dice first, small disclosed boost after a grace period, capped, applies to everyone, switchable.
 - [ ] **Whose turn** is obvious: arrow, highlighted panel, live prompt line.
@@ -298,6 +298,7 @@ Rules learned the hard way:
 | Decision | Default | Why |
 | --- | --- | --- |
 | Auto roll | On | Removes friction; real choices still wait for the player |
+| Auto move | On | Same, for forced moves; some players want to click every move |
 | Comeback assist | On, disclosed, switchable, same for bots | Fair dice feel unfair in long droughts |
 | Auto-pause on hidden tab | Local games only | Pausing an online game would freeze everyone |
 | Undo | Local only, back to your last decision | Rewriting shared history online would confuse others |

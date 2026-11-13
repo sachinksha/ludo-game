@@ -31,6 +31,11 @@ export const TIMING = {
 } as const
 
 /** A player who just got all four tokens home, shown in a banner. */
+/** Any token from a group of equivalent moves; they all give the same result. */
+function pickAny(ids: number[], rng: Rng): number {
+  return ids[Math.min(ids.length - 1, Math.floor(rng() * ids.length))]
+}
+
 export interface Notice {
   /** Changes for each new notice, so the UI can re-announce and restart its animation. */
   id: number
@@ -87,6 +92,7 @@ export interface LudoController {
   isMine: (color: Color) => boolean
   /** Dice roll by themselves for humans. */
   autoRoll: boolean
+  autoMove: boolean
   /** A player who just finished, while their banner is up. */
   celebration: Celebration | null
   /** A short message for everyone at the table, such as a bot taking over a seat. */
@@ -125,6 +131,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
   const game = useGameStore((s) => s.game)
   const paused = useGameStore((s) => s.paused)
   const autoRoll = useGameStore((s) => s.settings.autoRoll)
+  const autoMove = useGameStore((s) => s.settings.autoMove)
   const actions = useGameStore((s) => s.actions)
   const redoStack = useGameStore((s) => s.redoStack)
   const role = useOnlineStore((s) => s.role)
@@ -333,10 +340,18 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     const seat = game.players[game.currentIndex]
 
     if (role === 'guest') {
-      // Guests only auto-roll for themselves; the host does everything else.
-      if (game.phase !== 'roll' || !autoRoll || !isMine(seat.color) || inbox.length > 0) return
-      const id = window.setTimeout(() => sendIntent({ action: 'roll' }), TIMING.AUTO_ROLL_MS)
-      return () => window.clearTimeout(id)
+      // Guests automate only their own seat, by sending intents; the host does everything else.
+      if (!isMine(seat.color) || inbox.length > 0) return
+      if (game.phase === 'roll' && autoRoll) {
+        const id = window.setTimeout(() => sendIntent({ action: 'roll' }), TIMING.AUTO_ROLL_MS)
+        return () => window.clearTimeout(id)
+      }
+      const ids = game.phase === 'move' && autoMove ? autoMoveTokenIds(game.legalMoves) : null
+      if (ids) {
+        const id = window.setTimeout(() => sendIntent({ action: 'move', tokenId: pickAny(ids, rng) }), TIMING.AUTO_MOVE_MS)
+        return () => window.clearTimeout(id)
+      }
+      return
     }
 
     // Host: act on a guest's intent if it is for the current seat and position.
@@ -360,14 +375,12 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     }
 
     // Move phase. When there is no real choice (one legal move, or every legal
-    // move starts from the same spot), play it without a click. Any token in the
-    // group gives the same result, so pick one at random.
-    const autoIds = autoMoveTokenIds(game.legalMoves)
+    // move starts from the same spot), play it without a click: always for bots,
+    // and for this device's humans when Auto move is on. A remote player's own
+    // device decides that for them, so the host waits for their intent.
+    const autoIds = seat.kind === 'bot' || (autoMove && isMine(seat.color)) ? autoMoveTokenIds(game.legalMoves) : null
     if (autoIds) {
-      const id = window.setTimeout(() => {
-        const pick = autoIds[Math.min(autoIds.length - 1, Math.floor(rng() * autoIds.length))]
-        playMove(pick)
-      }, TIMING.AUTO_MOVE_MS)
+      const id = window.setTimeout(() => playMove(pickAny(autoIds, rng)), TIMING.AUTO_MOVE_MS)
       return () => window.clearTimeout(id)
     }
 
@@ -378,7 +391,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
       }, TIMING.BOT_MOVE_MS)
       return () => window.clearTimeout(id)
     }
-  }, [game, actions, busy, paused, offerEnd, autoRoll, role, inbox, isMine, performRoll, playMove, sendIntent, rng])
+  }, [game, actions, busy, paused, offerEnd, autoRoll, autoMove, role, inbox, isMine, performRoll, playMove, sendIntent, rng])
 
   const endEarly = useCallback(() => {
     if (busyRef.current || role === 'guest') return
@@ -446,6 +459,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     humanTurn: isMine(seat.color) && game.phase !== 'gameOver',
     isMine,
     autoRoll,
+    autoMove,
     celebration,
     notice,
     offerEnd,

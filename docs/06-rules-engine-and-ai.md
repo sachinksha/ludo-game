@@ -46,6 +46,8 @@ The engine has no idea any of these exist. Adding a new consumer (achievements, 
 
 [`autoMoveTokenIds`](../src/game/engine.ts) decides when the player has no *real* choice: one legal move, or every legal move starts from the same spot (stacked tokens, or all from the base on a six). It returns ids or `null`. The rule is pure and tested; the hook only acts on it. Good UX decisions often reduce to a small pure function plus a test.
 
+Whether to *act* on it is a player preference, the **Auto move** switch, and that lives in the hook, not the engine. Online, that raises a design question: whose preference applies to a guest's seat? The answer is the guest's own. The host never auto-plays a remote human's forced move; the guest's device sees the forced move, and if its switch is on, sends the move intent itself. Rule of thumb: the authority owns *what is legal*; each client owns *how its own player likes to play*. Bots are always automatic.
+
 ## The bots: utility-based AI
 
 [bot.ts](../src/game/bot.ts) uses the simplest AI that works well for games with small branching: **score every legal move, pick the best**. Each move gets a weighted sum of features:

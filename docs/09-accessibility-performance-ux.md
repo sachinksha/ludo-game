@@ -8,7 +8,7 @@
 
 | Pattern | Where | Why |
 | --- | --- | --- |
-| `role="switch"` + `aria-checked` | Sound and Auto roll toggles ([GameScreen.tsx](../src/components/GameScreen.tsx)) | A button that is on or off |
+| `role="switch"` + `aria-checked` | Sound, Auto roll and Auto move toggles ([GameScreen.tsx](../src/components/GameScreen.tsx)) | A button that is on or off |
 | `aria-pressed` | Colour chips on setup | Toggle buttons in a group |
 | `role="img"` + `aria-label` | The SVG board | A complex graphic with a text alternative |
 | `aria-live="polite"` | The prompt line ("Your turn...") | Announces turn changes without stealing focus |
@@ -38,7 +38,7 @@
 ## UX decisions worth discussing
 
 - **Auto roll on by default, but never auto-choose a real decision.** Remove friction without removing agency.
-- **Automatic moves** only when every option is equivalent.
+- **Automatic moves** only when every option is equivalent, behind an **Auto move** switch (on by default) for players who prefer to click every move.
 - **Comeback dice:** a fairness feeling fix, disclosed in the UI and README, and switchable.
 - **Celebrate each finish,** not only the winner: players who finish second still get a moment.
 - **Offer to end** when only bots remain, rather than forcing people to watch.

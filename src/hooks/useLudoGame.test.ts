@@ -56,6 +56,27 @@ describe('useLudoGame: forced moves', () => {
     expect(useGameStore.getState().actions).toHaveLength(2)
   })
 
+  it('waits for a click on a forced move when auto move is off', () => {
+    useGameStore.getState().updateSettings({ autoMove: false })
+    try {
+      seedSingleTokenGame()
+      const { result } = renderHook(() => useLudoGame(THREE))
+      act(() => result.current.roll())
+      act(() => vi.advanceTimersByTime(TIMING.ROLL_MS + 10))
+      act(() => vi.advanceTimersByTime(TIMING.SETTLE_MS + TIMING.AUTO_MOVE_MS + 10))
+      act(() => vi.advanceTimersByTime(2000))
+      expect(useGameStore.getState().game!.phase).toBe('move')
+      expect(result.current.humanTurn).toBe(true)
+      expect(useGameStore.getState().actions).toHaveLength(1)
+
+      act(() => result.current.pickToken(0))
+      act(() => vi.advanceTimersByTime(2000))
+      expect(useGameStore.getState().game!.players[0].tokens[0].state).toEqual({ kind: 'track', pos: START_INDEX.red + 3 })
+    } finally {
+      useGameStore.getState().updateSettings({ autoMove: true })
+    }
+  })
+
   it('does not auto-move when the human has a choice', () => {
     const base = seedSingleTokenGame()
     // Give red a second token on the board so there are two legal moves with a three.

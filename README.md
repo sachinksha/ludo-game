@@ -6,12 +6,12 @@ A browser Ludo game built with React, TypeScript, Vite and Zustand. Play on one 
 - **2 or 4 players.** Each seat is a human, a bot or (online) a friend on another device, with at least one human. In a 2-player game you pick the two colours.
 - **Online play by invite link.** Browser to browser over WebRTC, with no game server to host or pay for. Links stop admitting new players after 5 minutes.
 - **Bots with personalities.** Each bot gets a random playing style every game (hunter, guardian, racer or balanced), so no two games play out the same.
-- **Auto roll** (on by default): your dice roll by themselves, and you step in only when there is a real choice of piece.
+- **Auto roll** and **Auto move** (both on by default): your dice roll by themselves, forced moves play themselves, and you step in only when there is a real choice of piece. Turn either off to do it yourself.
 - **Fair dice, with optional comeback help** for a player stuck in base for a long time.
 - **Celebrations** when any player gets all pieces home, not just at the end.
 - **Undo and redo**, **pause and resume**, and automatic pause when you switch away from a local game.
 - **Sound effects** synthesised in the browser (no audio files), with an on/off switch.
-- **Tested.** 174 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
+- **Tested.** 178 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
 - **Free software** under the GNU GPL v3 (see [Licence](#licence)).
 - **A learning guide** in [`docs/`](docs/README.md) that uses this codebase to teach React, state management, TypeScript, game loops, system design and testing, aimed at senior and principal frontend interviews.
 
@@ -55,7 +55,7 @@ npm run dev        # http://localhost:5173
 4. Optionally name each human seat (up to 12 characters, not blank, all different). Online friends choose their own names.
 5. Leave **Comeback dice** on or turn it off (see [Dice](#dice)), then press **Start game** (or **Create invite link**).
 6. Each seat has a corner panel with its own dice, and the **arrow** shows whose turn it is. With **Auto roll** on, your dice roll by themselves. With it off, **tap your dice** or press **Space**.
-7. When there is no real choice, your piece moves by itself: only one piece can move, or every piece that can move sits on the same spot. Otherwise, click a highlighted piece or press its number (pieces are numbered 1 to 4 during your turn).
+7. When there is no real choice, your piece moves by itself: only one piece can move, or every piece that can move sits on the same spot. Turn **Auto move** off to make every move yourself. Otherwise, click a highlighted piece or press its number (pieces are numbered 1 to 4 during your turn).
 
 ### Toolbar
 
@@ -64,6 +64,7 @@ npm run dev        # http://localhost:5173
 | **Undo** / **Redo** | Step back over your last decision (a roll and its move), or forward again. Local games only |
 | **Pause** / **Resume** | Freeze the game. A local game also pauses itself when its tab goes to the background or the window loses focus. Online, only the host can pause, and it pauses for everyone |
 | **Auto roll** switch | Roll automatically on your turn (on by default). You still choose the piece when there is a choice |
+| **Auto move** switch | Play your move automatically when there is no real choice (on by default). Off: you click every move, even forced ones |
 | **Sound** switch | Sound effects on or off |
 | **Settings** | Back to the setup screen. Asks before abandoning a game in progress. Online it reads **End online game** (host) or **Leave game** (guest) |
 | **New game** | Same seats, fresh game. Online, the host restarts for everyone in the session |
@@ -99,7 +100,7 @@ If a friend's connection drops mid-game, a banner offers **Let a bot play** for 
 
 ### Joining
 
-Open the link, type a name, press **Join game**, and wait for the host to start. No account, email or phone number. Auto roll works for you too. Pause, undo and new game belong to the host.
+Open the link, type a name, press **Join game**, and wait for the host to start. No account, email or phone number. Auto roll and Auto move work for you too, set on your own device. Pause, undo and new game belong to the host.
 
 ### How it works
 
@@ -163,7 +164,7 @@ Ludo has many house rules and online versions differ. These are the choices this
 | Extra rolls | Six, capture, and a piece reaching the centre (not your last) | Common online rules. No bonus after your last piece, because your game is over |
 | Three sixes | Forfeit the turn | Classic rule that limits runaway streaks |
 | Exact finish | Required | Classic rule. Overshooting moves are simply not legal |
-| Automatic moves | Played for you when every option gives the same result | Saves clicks without taking away a real decision |
+| Automatic moves | Played for you when every option gives the same result, unless you turn **Auto move** off. Online, each player's own device decides for their seat | Saves clicks without taking away a real decision. Some players like to make every move themselves |
 | Dice | Cryptographic randomness, each roll independent | Removes any doubt about the random source. See [Dice](#dice) |
 | Comeback dice | On by default, same help for humans and bots | Long dry spells are normal with fair dice and frustrating. Easy to turn off |
 | Bots | Random style each game, small random nudges | Varied, human-feeling opponents without being dumb. See [Bots](#bots) |
@@ -253,7 +254,7 @@ The [learning guide](docs/README.md) explains each of these in depth.
 npm test
 ```
 
-174 tests across:
+178 tests across:
 
 - **Engine:** dice mapping, comeback odds, creation and names, lane entry and exact finish, captures (including stacks) and safe squares, extra rolls, automatic moves, the three-sixes forfeit, passes, finishing, ending early and bot takeover.
 - **Bots:** every style still captures and finishes, guardians run from threats, racers push leaders, and close calls vary.

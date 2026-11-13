@@ -8,12 +8,14 @@ import type { GameAction, GameState, PlayerConfig } from '../game/types'
 export interface Settings {
   /** Roll automatically for human players when their turn comes. */
   autoRoll: boolean
+  /** Move automatically for human players when there is no real choice. */
+  autoMove: boolean
   /** Raise the odds of a six for players stuck in the base for a long time. */
   comebackDice: boolean
 }
 
 const SETTINGS_KEY = 'ludo:settings'
-const DEFAULT_SETTINGS: Settings = { autoRoll: true, comebackDice: true }
+const DEFAULT_SETTINGS: Settings = { autoRoll: true, autoMove: true, comebackDice: true }
 
 function loadSettings(): Settings {
   try {
@@ -22,6 +24,7 @@ function loadSettings(): Settings {
     const parsed = JSON.parse(raw) as Partial<Settings>
     return {
       autoRoll: typeof parsed.autoRoll === 'boolean' ? parsed.autoRoll : DEFAULT_SETTINGS.autoRoll,
+      autoMove: typeof parsed.autoMove === 'boolean' ? parsed.autoMove : DEFAULT_SETTINGS.autoMove,
       comebackDice: typeof parsed.comebackDice === 'boolean' ? parsed.comebackDice : DEFAULT_SETTINGS.comebackDice,
     }
   } catch {

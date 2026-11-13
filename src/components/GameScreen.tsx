@@ -81,6 +81,20 @@ function AutoRollSwitch() {
   )
 }
 
+function AutoMoveSwitch() {
+  const autoMove = useGameStore((s) => s.settings.autoMove)
+  const updateSettings = useGameStore((s) => s.updateSettings)
+  return (
+    <ToggleSwitch
+      icon="forward"
+      label="Auto move"
+      on={autoMove}
+      onChange={(on) => updateSettings({ autoMove: on })}
+      title="Move your piece automatically when there is no real choice: only one piece can move, or all movable pieces share a square."
+    />
+  )
+}
+
 const RANK_WORD = ['', '1st', '2nd', '3rd', '4th']
 
 /** Banner over the board when a player gets all four pieces home. */
@@ -304,6 +318,7 @@ export function GameScreen({ ludo }: GameScreenProps) {
             shortcutLabel="P"
           />}
           <AutoRollSwitch />
+          <AutoMoveSwitch />
           <SoundSwitch />
           <ToolButton
             icon="gear"
