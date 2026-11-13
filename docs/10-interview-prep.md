@@ -55,6 +55,9 @@ Clients send intents, never outcomes. The authority validates turn, seat and pos
 **Q: The public signalling server is down. What happens, and what would you do?**
 Hosting fails with a clear message; local play works. Short term: allow configuring a self-hosted PeerJS server. Long term: move to a room server you control.
 
+**Q: Your WebRTC feature works locally but not from a phone on 4G. Why?**
+Same-machine connections use local candidates, so NAT never comes up. Carrier-grade NAT on mobile data is usually symmetric, so STUN-discovered addresses do not work and a TURN relay is required. Here the default free relay had disappeared; the fix was configurable TURN with a STUN-only fallback. ([Chapter 8](08-multiplayer-system-design.md))
+
 ## Testing
 
 **Q: How do you test time-based UI?**

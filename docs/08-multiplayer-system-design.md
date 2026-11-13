@@ -45,7 +45,7 @@ Every multiplayer design has to answer "who decides what happened?"
 
 1. **Signalling.** Two browsers cannot find each other directly. They exchange connection offers through a signalling server. Here that is PeerJS's free server; it never sees game messages.
 2. **ICE and STUN.** Each browser asks a STUN server "what is my public address?" and gathers candidate addresses.
-3. **TURN.** If both sides are behind strict NATs, traffic is relayed through a TURN server. PeerJS provides a free one by default.
+3. **TURN.** If both sides are behind strict NATs, traffic is relayed through a TURN server. Mobile data is the usual case: carriers use carrier-grade NAT with per-destination port mapping (symmetric NAT), so the address STUN discovers is useless to the other peer. PeerJS used to bundle a free TURN relay; it shut down, so [iceServers.ts](../src/net/iceServers.ts) reads TURN settings from build-time environment variables (for example a free Metered credentials URL) and falls back to STUN only.
 4. **DTLS.** The data channel is encrypted end to end between the browsers.
 
 ## 4. Why this codebase made it easy
@@ -123,16 +123,25 @@ If a guest stays away, the host sees a banner: **Let a bot play**. That records 
 | Failure | What happens |
 | --- | --- |
 | Public signalling server down | Hosting fails with a clear error; local play unaffected |
-| Strict firewall blocks WebRTC | Guest sees "Could not reach the host" with Try again |
+| No TURN relay and a strict NAT (mobile data) | ICE finds no path; the guest times out and sees "Could not reach the host". Works on the same machine or Wi-Fi, which makes it look like a "phone bug" |
+| Strict firewall blocks WebRTC | Guest sees "Could not reach the host" with Try again. A `turns:` relay on port 443 usually gets through |
 | Guest refreshes | Rejoins with its secret and gets a `sync` |
 | Guest disconnects for good | Host offers bot takeover |
 | Host closes the tab | Game ends for everyone (known limitation) |
 | Signalling drops mid-game | Existing games continue (they are direct); the host reconnects to signalling quietly so new players could still find it |
 
+### War story: works on my machine
+
+The first real test passed between two browsers on one laptop and failed between a phone on 4G and a laptop on Wi-Fi. On one machine, ICE uses local "host" candidates, so no NAT is involved. Across networks, the phone's carrier NAT needs a relay. A ten-line UDP probe showed the default PeerJS TURN hostnames no longer resolve in DNS. Lessons worth telling in an interview:
+- Test networked features across real network boundaries early. Localhost hides NAT, latency and packet loss.
+- Free third-party dependencies can disappear. Make them configurable and fail soft (here: fall back to STUN and warn in the console).
+- Diagnose the layer before the code: signalling worked (peers registered), so the failure had to be in ICE.
+
 ## 10. How the code is organised
 
 - [transport.ts](../src/net/transport.ts): `Network` and `Channel` interfaces (the port).
 - [peerNetwork.ts](../src/net/peerNetwork.ts): PeerJS adapter, loaded with dynamic `import()`.
+- [iceServers.ts](../src/net/iceServers.ts): STUN/TURN configuration from environment variables, with a fail-soft fetch.
 - [memoryNetwork.ts](../src/net/memoryNetwork.ts): test adapter.
 - [hostSession.ts](../src/net/hostSession.ts): seats, admission, expiry, reconnection, broadcast, intent forwarding.
 - [guestSession.ts](../src/net/guestSession.ts): connect, hello, receive, intents, resync.

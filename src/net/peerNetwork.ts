@@ -4,9 +4,9 @@
  * - Signalling (exchanging connection details) uses the free public PeerJS
  *   server, 0.peerjs.com. It only introduces the two browsers; game messages
  *   never pass through it.
- * - NAT traversal uses PeerJS's default ICE servers: Google's public STUN
- *   server, plus PeerJS's free TURN relay for networks where a direct
- *   connection is impossible.
+ * - NAT traversal uses Google's public STUN servers plus a TURN relay if one
+ *   is configured (see iceServers.ts). Without TURN, players on mobile data or
+ *   strict networks often cannot connect.
  *
  * None of these cost anything or need an account, but they are best-effort
  * public services with no uptime guarantee.
@@ -16,13 +16,24 @@
  */
 import type { DataConnection, Peer as PeerType } from 'peerjs'
 import type { Channel, HostEndpoint, Network } from './transport'
+import { hasRelay, loadIceServers } from './iceServers'
 
 /** Give up connecting to a host after this long. */
 const CONNECT_TIMEOUT_MS = 15_000
 
-async function loadPeer(): Promise<typeof PeerType> {
-  const mod = await import('peerjs')
-  return mod.Peer
+let warned = false
+
+/** Loads PeerJS and creates a Peer with our ICE servers. */
+async function createPeer(): Promise<PeerType> {
+  const [{ Peer }, iceServers] = await Promise.all([import('peerjs'), loadIceServers()])
+  if (!hasRelay(iceServers) && !warned) {
+    warned = true
+    console.warn(
+      '[ludo] No TURN relay configured. Online play may fail between different networks ' +
+        '(for example mobile data and Wi-Fi). See src/net/iceServers.ts.',
+    )
+  }
+  return new Peer({ config: { iceServers } })
 }
 
 function wrap(conn: DataConnection, onClosed?: () => void): Channel {
@@ -59,8 +70,7 @@ function whenOpen(peer: PeerType): Promise<string> {
 
 export const peerNetwork: Network = {
   async host(): Promise<HostEndpoint> {
-    const Peer = await loadPeer()
-    const peer = new Peer()
+    const peer = await createPeer()
     const id = await whenOpen(peer)
     // If the signalling link drops, existing games keep working (they are
     // direct), but new guests could not find us. Reconnect quietly.
@@ -81,8 +91,7 @@ export const peerNetwork: Network = {
   },
 
   async join(hostId: string): Promise<Channel> {
-    const Peer = await loadPeer()
-    const peer = new Peer()
+    const peer = await createPeer()
     try {
       await whenOpen(peer)
     } catch {

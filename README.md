@@ -11,7 +11,7 @@ A browser Ludo game built with React, TypeScript, Vite and Zustand. Play on one 
 - **Celebrations** when any player gets all pieces home, not just at the end.
 - **Undo and redo**, **pause and resume**, and automatic pause when you switch away from a local game.
 - **Sound effects** synthesised in the browser (no audio files), with an on/off switch.
-- **Tested.** 160 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
+- **Tested.** 168 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
 - **Free software** under the GNU GPL v3 (see [Licence](#licence)).
 - **A learning guide** in [`docs/`](docs/README.md) that uses this codebase to teach React, state management, TypeScript, game loops, system design and testing, aimed at senior and principal frontend interviews.
 
@@ -117,10 +117,24 @@ Open the link, type a name, press **Join game**, and wait for the host to start.
 
 - **The host is the server.** Guests send only intents ("roll", "move piece 2"). The host checks it is that guest's turn and position, decides the outcome (including the dice, so guests cannot cheat them), and broadcasts the resulting action. Every browser runs the same deterministic engine, so applying the same actions gives the same game.
 - **The action log is the protocol.** The game was already stored as an initial state plus a list of actions (that is how undo works), so online play sends exactly those actions. A guest that misses one notices the gap in the sequence numbers and asks for a full copy.
-- **Free infrastructure, no backend.** [PeerJS](https://peerjs.com) introduces the two browsers through its free public signalling server, then the game runs over a direct, encrypted WebRTC data channel. Google's public STUN server helps browsers find each other, and PeerJS's free TURN relay carries traffic when a direct path is impossible. The site itself stays a static Vercel deploy.
+- **Free infrastructure, no backend.** [PeerJS](https://peerjs.com) introduces the two browsers through its free public signalling server, then the game runs over a direct, encrypted WebRTC data channel. Google's public STUN server helps browsers find each other. A TURN relay carries traffic when no direct path exists, which is normal on mobile data. You supply it with an environment variable, using a free provider (see [Connecting across networks](#connecting-across-networks)). The site itself stays a static Vercel deploy.
 - **Privacy.** The invite (host id, one-time token, expiry) lives in the URL fragment after `#`, which browsers never send to web servers. Nothing is stored on any server. Names exist only in the players' browsers.
 - **Invite expiry.** Links admit new players for 5 minutes. The host enforces the expiry and the token, so editing the link does not help. **Reset link** issues a new token and invalidates the old link.
 - **Reconnecting.** On joining, a guest receives a private seat secret, kept in that tab's `sessionStorage`. It lets the same tab reclaim the seat after a refresh or a dropped connection.
+
+### Connecting across networks
+
+Two browsers on the same machine or the same Wi-Fi usually connect directly. A phone on **mobile data** and a laptop on Wi-Fi usually cannot, because mobile carriers put phones behind carrier-grade NAT. Those players need a **TURN relay** that forwards the (tiny) game messages.
+
+PeerJS used to provide a free relay, but it has shut down. Without one, the game still works on the same network and on many home networks, but not on mobile data. To add a relay at no cost:
+
+1. Create a free account with a TURN provider. [Metered](https://www.metered.ca/stun-turn) has a free plan with no card, and its monthly allowance is far more than a turn-based game uses. Create an app and copy its **credentials API URL**.
+2. Set `VITE_ICE_SERVERS_URL` to that URL. In Vercel: **Project → Settings → Environment Variables**, then redeploy. For local development, put it in `.env.local` (see [.env.example](.env.example)).
+3. Alternatively, set static credentials with `VITE_TURN_URLS`, `VITE_TURN_USERNAME` and `VITE_TURN_CREDENTIAL`.
+
+These values end up in the public JavaScript bundle (that is how browsers use TURN), so someone could read them and use your relay allowance. Most providers let you restrict a key to your domain. The browser console warns when no relay is configured.
+
+This account is only for you, the person deploying the game. Players still join with a link and a name.
 
 The full design, alternatives considered and trade-offs are in [docs/08-multiplayer-system-design.md](docs/08-multiplayer-system-design.md).
 
@@ -235,7 +249,7 @@ The [learning guide](docs/README.md) explains each of these in depth.
 npm test
 ```
 
-160 tests across:
+168 tests across:
 
 - **Engine:** dice mapping, comeback odds, creation and names, lane entry and exact finish, captures (including stacks) and safe squares, extra rolls, automatic moves, the three-sixes forfeit, passes, finishing, ending early and bot takeover.
 - **Bots:** every style still captures and finishes, guardians run from threats, racers push leaders, and close calls vary.
@@ -257,8 +271,9 @@ Any modern browser. Online play needs WebRTC data channels, which every current 
 ## Known limitations
 
 - **The host's tab is the server.** If the host closes it, the online game ends. Guests can reconnect only while the host is still there.
-- **Free public servers, no guarantees.** The PeerJS signalling and TURN servers are free community services with no uptime promise. If they are down, local play still works, but online games cannot start.
-- **Some networks block WebRTC.** Strict corporate or school firewalls may stop connections even with the relay.
+- **Free public servers, no guarantees.** The PeerJS signalling server is a free community service with no uptime promise. If it is down, local play still works, but online games cannot start.
+- **Mobile data needs a TURN relay.** Without one configured, players on different networks (especially mobile data) often cannot connect. See [Connecting across networks](#connecting-across-networks).
+- **Some networks block WebRTC.** Strict corporate or school firewalls may stop connections even with a relay. A relay on port 443 over TLS (`turns:`) gets through most of them.
 - **No spectators and no late joining.** Once a game starts, only players reclaiming their own seat can connect.
 - **Bots look one move ahead** rather than searching, so they are reasonable rather than strong.
 - **Pausing takes effect after the current animation.**

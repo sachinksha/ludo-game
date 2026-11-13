@@ -92,7 +92,7 @@ export function JoinScreen() {
         body = (
           <>
             <p role="alert">
-              Could not reach the host. They may have closed the game, or a network firewall may be blocking direct connections.
+              Could not reach the host. They may have closed the game, or your networks cannot connect directly (common on mobile data or strict Wi-Fi). Try again, or switch to the same Wi-Fi as the host.
             </p>
             <button type="button" className="primary" onClick={reconnect}>Try again</button>
           </>
