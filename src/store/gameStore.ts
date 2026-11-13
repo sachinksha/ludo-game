@@ -3,6 +3,7 @@ import { describeEvent } from '../game/describe'
 import { createGame } from '../game/engine'
 import { replay, undoIndex } from '../game/history'
 import type { GameAction, GameState, PlayerConfig } from '../game/types'
+import { isTheme, type Theme } from '../theme'
 
 /** Player preferences kept in the browser between visits. */
 export interface Settings {
@@ -12,10 +13,12 @@ export interface Settings {
   autoMove: boolean
   /** Raise the odds of a six for players stuck in the base for a long time. */
   comebackDice: boolean
+  /** Colour theme: follow the system (default), or force light or dark. */
+  theme: Theme
 }
 
 const SETTINGS_KEY = 'ludo:settings'
-const DEFAULT_SETTINGS: Settings = { autoRoll: true, autoMove: true, comebackDice: true }
+const DEFAULT_SETTINGS: Settings = { autoRoll: true, autoMove: true, comebackDice: true, theme: 'system' }
 
 function loadSettings(): Settings {
   try {
@@ -26,6 +29,7 @@ function loadSettings(): Settings {
       autoRoll: typeof parsed.autoRoll === 'boolean' ? parsed.autoRoll : DEFAULT_SETTINGS.autoRoll,
       autoMove: typeof parsed.autoMove === 'boolean' ? parsed.autoMove : DEFAULT_SETTINGS.autoMove,
       comebackDice: typeof parsed.comebackDice === 'boolean' ? parsed.comebackDice : DEFAULT_SETTINGS.comebackDice,
+      theme: isTheme(parsed.theme) ? parsed.theme : DEFAULT_SETTINGS.theme,
     }
   } catch {
     return DEFAULT_SETTINGS

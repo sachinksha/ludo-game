@@ -1,6 +1,6 @@
 # 7. Testing strategy
 
-`npm test` runs 178 tests in about two seconds with Vitest, jsdom and React Testing Library.
+`npm test` runs 182 tests in about two seconds with Vitest, jsdom and React Testing Library.
 
 ## Shape of the suite
 

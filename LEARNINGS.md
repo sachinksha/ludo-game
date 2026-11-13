@@ -212,6 +212,7 @@ Players of this game now expect these. Tick them off in the next game, adapting 
 ### Quality
 - [ ] Accessible: native buttons, `role="switch"`, `aria-pressed`, `aria-live`, `role="alert"`, dialogs with focus management, board `aria-label`.
 - [ ] `prefers-reduced-motion` turns off decorative animation.
+- [ ] **Theme**: System (default) / Light / Dark in the footer, CSS custom properties with `prefers-color-scheme` + `data-theme`, inline pre-paint script in `index.html`, game colours unchanged across themes.
 - [ ] Settings in `localStorage`, every access wrapped in try/catch.
 - [ ] PeerJS loaded only when someone goes online (code splitting).
 - [ ] README with a **"Choices we made"** table explaining every house rule and trade-off.
@@ -298,6 +299,7 @@ Rules learned the hard way:
 | Decision | Default | Why |
 | --- | --- | --- |
 | Auto roll | On | Removes friction; real choices still wait for the player |
+| Theme | System | Respect the device; let players override |
 | Auto move | On | Same, for forced moves; some players want to click every move |
 | Comeback assist | On, disclosed, switchable, same for bots | Fair dice feel unfair in long droughts |
 | Auto-pause on hidden tab | Local games only | Pausing an online game would freeze everyone |

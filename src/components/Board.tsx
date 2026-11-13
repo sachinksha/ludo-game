@@ -57,7 +57,7 @@ export function Board({ players, activeColor, clickable, onPick, labelColor = nu
 
   return (
     <svg className="board" viewBox="0 0 15 15" role="img" aria-label="Ludo board" style={{ gridArea: 'board' }}>
-      <rect x={0} y={0} width={15} height={15} fill="#fff" />
+      <rect className="sq" x={0} y={0} width={15} height={15} fill="#fff" />
 
       {/* Coloured bases with a white inner box and empty slots. */}
       {COLOURS.map((color) => {
@@ -65,7 +65,7 @@ export function Board({ players, activeColor, clickable, onPick, labelColor = nu
         return (
           <g key={`base-${color}`}>
             <rect x={ox} y={oy} width={6} height={6} fill={COLOR_HEX[color]} stroke="#222" strokeWidth={0.04} />
-            <rect x={ox + 0.6} y={oy + 0.6} width={4.8} height={4.8} rx={0.5} fill="#fff" stroke="#222" strokeWidth={0.03} />
+            <rect className="sq" x={ox + 0.6} y={oy + 0.6} width={4.8} height={4.8} rx={0.5} fill="#fff" stroke="#222" strokeWidth={0.03} />
             {YARD_SLOTS.map((_, slot) => {
               const [sx, sy] = yardSlotCentre(color, slot)
               return <circle key={slot} cx={sx} cy={sy} r={0.46} fill={COLOR_LIGHT[color]} stroke={COLOR_HEX[color]} strokeWidth={0.05} />
@@ -84,10 +84,10 @@ export function Board({ players, activeColor, clickable, onPick, labelColor = nu
         const isSafe = SAFE_INDICES.has(i)
         return (
           <g key={`ring-${i}`}>
-            <rect x={cell[0]} y={cell[1]} width={1} height={1} fill={start ? COLOR_HEX[start] : '#fff'} stroke="#222" strokeWidth={0.035} />
+            <rect className={start ? undefined : 'sq'} x={cell[0]} y={cell[1]} width={1} height={1} fill={start ? COLOR_HEX[start] : '#fff'} stroke="#222" strokeWidth={0.035} />
             {entry && <polygon points={arrowPoints(cell)} fill={COLOR_HEX[entry]} stroke="#222" strokeWidth={0.02} />}
             {isSafe && !start && (
-              <polygon points={starPoints(cell[0] + 0.5, cell[1] + 0.5)} fill="#fff" stroke="#222" strokeWidth={0.03} />
+              <polygon className="sq" points={starPoints(cell[0] + 0.5, cell[1] + 0.5)} fill="#fff" stroke="#222" strokeWidth={0.03} />
             )}
           </g>
         )

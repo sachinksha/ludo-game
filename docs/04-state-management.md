@@ -11,7 +11,7 @@ Principal-level answers start by **classifying** state, because each kind wants 
 | External state | Who is connected, invite expiry | `HostSession` / `GuestSession` objects | Owned by non-React code, read with `useSyncExternalStore` |
 | Animation state | Where a token is drawn mid-move, dice tumbling | `useState` in `useLudoGame` | Visual only, per mount, thrown away on reset |
 | Form state | Setup choices | `useState` in `SetupScreen` | Local until submitted |
-| Persisted preferences | Auto roll, auto move, comeback dice | `gameStore.settings` + `localStorage` | Should survive reloads |
+| Persisted preferences | Auto roll, auto move, comeback dice, theme | `gameStore.settings` + `localStorage` | Should survive reloads |
 | Per-tab identity | Online seat secret | `sessionStorage` | Survives refresh, not shared across tabs |
 | Derived state | Log text, legal moves, validation errors | Computed, never stored | Cannot drift out of sync |
 

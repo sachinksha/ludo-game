@@ -7,6 +7,7 @@ import { useLudoGame } from './hooks/useLudoGame'
 import { parseInvite } from './net/invite'
 import { useGameStore } from './store/gameStore'
 import { useOnlineStore } from './store/onlineStore'
+import { ThemePicker } from './components/ThemePicker'
 
 const PROFILE_URL = 'https://github.com/sachinksha'
 const REPO_URL = `${PROFILE_URL}/ludo-game`
@@ -56,6 +57,7 @@ export default function App() {
         <span>
           Made by <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer">@sachinksha</a>
         </span>
+        <ThemePicker />
       </footer>
     </>
   )

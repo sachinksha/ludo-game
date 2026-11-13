@@ -21,6 +21,11 @@
 
 **Motion.** `@media (prefers-reduced-motion: reduce)` turns off decorative animation (confetti, halos, banner pop).
 
+**Dark mode.** Colours are CSS custom properties (`--bg`, `--surface`, `--text`, ...) defined once on `:root` and redefined for dark. The dark values apply under `@media (prefers-color-scheme: dark)` unless `<html data-theme="light">` is set, and always under `data-theme="dark"`. So "System" is simply *no attribute*, and the stylesheet does the rest ([theme.ts](../src/theme.ts), [ThemePicker.tsx](../src/components/ThemePicker.tsx)). Details worth mentioning in interviews:
+- **No flash of the wrong theme.** React renders after the CSS loads, so a stored "Dark" applied from React would flash light first. A five-line inline script in `index.html` reads the setting and sets `data-theme` before first paint.
+- **`color-scheme`** is set per theme so native controls, scrollbars and checkboxes match.
+- **Theme only the surroundings.** Player colours and dice are identical in both themes; the board's white squares dim slightly. Game pieces must stay recognisable.
+
 **Touch.** Prompts change wording on touch devices ("Tap your dice"), keyboard help hides, and `touch-action: manipulation` removes the double-tap zoom delay on buttons.
 
 ## Performance
