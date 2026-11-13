@@ -11,7 +11,7 @@ A browser Ludo game built with React, TypeScript, Vite and Zustand. Play on one 
 - **Celebrations** when any player gets all pieces home, not just at the end.
 - **Undo and redo**, **pause and resume**, and automatic pause when you switch away from a local game.
 - **Sound effects** synthesised in the browser (no audio files), with an on/off switch.
-- **Tested.** 170 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
+- **Tested.** 174 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
 - **Free software** under the GNU GPL v3 (see [Licence](#licence)).
 - **A learning guide** in [`docs/`](docs/README.md) that uses this codebase to teach React, state management, TypeScript, game loops, system design and testing, aimed at senior and principal frontend interviews.
 
@@ -95,7 +95,7 @@ On phones the toolbar shows icons only, panels shrink to one row, and keyboard h
 5. **Keep your tab open.** The host's browser runs the game for everyone.
 6. **New game** restarts for everyone. **End online game** closes the session, and guests see "The host ended the game".
 
-If a friend's connection drops mid-game, a banner offers **Let a bot play** for that seat. They can also come back: opening the same link in the same browser tab returns them to their seat, even after the link has expired.
+If a friend's connection drops mid-game, a banner offers **Let a bot play** for that seat. The seat is renamed to the next bot number (for example "Bot 2"), everyone at the table sees a short notice ("Asha left the game. Bot 2 is playing for them now."), and the game log records it. They can also come back: opening the same link in the same browser tab returns them to their seat, even after the link has expired.
 
 ### Joining
 
@@ -253,7 +253,7 @@ The [learning guide](docs/README.md) explains each of these in depth.
 npm test
 ```
 
-170 tests across:
+174 tests across:
 
 - **Engine:** dice mapping, comeback odds, creation and names, lane entry and exact finish, captures (including stacks) and safe squares, extra rolls, automatic moves, the three-sixes forfeit, passes, finishing, ending early and bot takeover.
 - **Bots:** every style still captures and finishes, guardians run from threats, racers push leaders, and close calls vary.

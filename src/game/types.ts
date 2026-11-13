@@ -115,7 +115,8 @@ export type GameEvent =
   | { type: 'finish'; color: Color; rank: number }
   | { type: 'turnPass'; color: Color; reason: 'noMoves' | 'threeSixes' }
   | { type: 'gameOver'; winners: Color[]; early?: boolean }
-  | { type: 'takeover'; color: Color }
+  /** A bot took a seat. Names are kept so every screen can explain the change. */
+  | { type: 'takeover'; color: Color; from: string; to: string }
 
 /**
  * A recorded player decision. The full history is a list of these, so the game

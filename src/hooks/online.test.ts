@@ -5,6 +5,7 @@
  */
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createBotProfile } from '../game/bot'
 import { createGame } from '../game/engine'
 import type { GameAction, PlayerConfig } from '../game/types'
 import { GuestSession } from '../net/guestSession'
@@ -161,6 +162,18 @@ describe('joining as a guest', () => {
     expect(intents).toEqual([{ color: 'yellow', seq: 1, intent: { action: 'roll' } }])
     // Nothing changes locally until the host answers.
     expect(useGameStore.getState().actions).toHaveLength(1)
+  })
+
+  it('tells this guest when a bot takes over another seat, then clears the notice', async () => {
+    const { host } = await joined()
+    const { result } = renderHook(() => useLudoGame(THREE))
+    act(() => host.announce({ type: 'takeover', color: 'red', bot: createBotProfile(THREE), actor: 'human' }))
+    await act(tick)
+    act(() => vi.advanceTimersByTime(10))
+    expect(result.current.notice).toMatchObject({ color: 'red', text: 'Host left the game. Bot 1 is playing for them now.' })
+    expect(useGameStore.getState().game!.players[0]).toMatchObject({ name: 'Bot 1', kind: 'bot' })
+    act(() => vi.advanceTimersByTime(TIMING.NOTICE_MS + 10))
+    expect(result.current.notice).toBeNull()
   })
 
   it('asks for a full copy when it notices a missing action', async () => {

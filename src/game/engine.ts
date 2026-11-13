@@ -240,10 +240,14 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 export function takeover(state: GameState, color: Color, bot: BotProfile): GameState {
   const seat = state.players.find((p) => p.color === color)
   if (!seat || seat.kind === 'bot' || state.phase === 'gameOver') return state
+  // The new bot is named like the others ("Bot N", numbered after the existing
+  // bots), so nobody mistakes it for the person who left. Derived from state,
+  // so every replica and every replay picks the same name.
+  const name = `Bot ${state.players.filter((p) => p.kind === 'bot').length + 1}`
   const players = state.players.map((p) =>
-    p.color === color ? { ...p, kind: 'bot' as const, bot, remote: false } : p,
+    p.color === color ? { ...p, kind: 'bot' as const, bot, remote: false, name } : p,
   )
-  return commit({ ...state, players }, [{ type: 'takeover', color }])
+  return commit({ ...state, players }, [{ type: 'takeover', color, from: seat.name, to: name }])
 }
 
 /** Total squares travelled by a player's tokens (base tokens count as zero). */

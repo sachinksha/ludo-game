@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FINISH_PROGRESS, LANE_ENTRY_INDEX, START_INDEX, TRACK_LENGTH, isSafeSquare, toAbsoluteIndex } from './board'
+import { createBotProfile } from './bot'
+import { describeEvent } from './describe'
 import { COMEBACK_GRACE, MAX_SIX_STREAK, applyAction, applyMove, autoMoveTokenIds, createGame, endGame, rollDice, rollDie, rollFor, rollWithValue, sixChance } from './engine'
 import { destinationFor, legalMovesFor, progressOf } from './rules'
 import type { GameState, PlayerConfig, TokenState } from './types'
@@ -407,5 +409,35 @@ describe('bot styles', () => {
     const g = createGame([{ color: 'red', kind: 'human' }, { color: 'yellow', kind: 'bot' }])
     expect(g.players[0].bot).toBeNull()
     expect(['balanced', 'hunter', 'guardian', 'racer']).toContain(g.players[1].bot?.persona)
+  })
+})
+
+describe('takeover', () => {
+  const configs: PlayerConfig[] = [
+    { color: 'red', kind: 'human', name: 'Host' },
+    { color: 'green', kind: 'bot' },
+    { color: 'yellow', kind: 'human', remote: true, name: 'Asha' },
+    { color: 'blue', kind: 'human', remote: true },
+  ]
+  const bot = createBotProfile(() => 0.5)
+
+  it('renames the seat to the next bot number and reports both names', () => {
+    const g = applyAction(createGame(configs, () => 0.5), { type: 'takeover', color: 'yellow', bot, actor: 'human' })
+    const seat = g.players.find((p) => p.color === 'yellow')!
+    expect(seat).toMatchObject({ kind: 'bot', name: 'Bot 2', remote: false, bot })
+    expect(g.events).toEqual([{ type: 'takeover', color: 'yellow', from: 'Asha', to: 'Bot 2' }])
+    expect(describeEvent(g.events[0])).toBe('Asha left. Bot 2 now plays Yellow')
+  })
+
+  it('keeps bot names unique across several takeovers', () => {
+    let g = createGame(configs, () => 0.5)
+    g = applyAction(g, { type: 'takeover', color: 'yellow', bot, actor: 'human' })
+    g = applyAction(g, { type: 'takeover', color: 'blue', bot, actor: 'human' })
+    expect(g.players.map((p) => p.name)).toEqual(['Host', 'Bot 1', 'Bot 2', 'Bot 3'])
+  })
+
+  it('ignores a seat that is already a bot', () => {
+    const g = createGame(configs, () => 0.5)
+    expect(applyAction(g, { type: 'takeover', color: 'green', bot, actor: 'human' })).toBe(g)
   })
 })

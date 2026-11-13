@@ -102,7 +102,7 @@ Guest                         Host                              Other guests
 
 On admission the host gives the guest a random **seat secret**. The guest keeps it in `sessionStorage` (per tab, survives refresh). A `hello` with a valid secret reclaims the seat **even after expiry and after the game started**, and the host replies with a `sync`. Without the secret, a stranger with an old link gets `expired` or `started`.
 
-If a guest stays away, the host sees a banner: **Let a bot play**. That records a `takeover` action, containing the bot's profile so replays stay deterministic, and permanently closes the seat.
+If a guest stays away, the host sees a banner: **Let a bot play**. That records a `takeover` action, containing the bot's profile so replays stay deterministic, and permanently closes the seat. The engine renames the seat to the next "Bot N" and emits a `takeover` event with the old and new names. Because the rename happens inside the pure engine rather than in the host's UI, every guest's replica and every replay derive the same name with no extra message. Each screen turns the event into a short notice. This is the event-sourcing payoff again: put the decision in the action and the consequences in the reducer, and replication comes free.
 
 ## 8. Security: a threat model
 

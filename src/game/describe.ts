@@ -26,7 +26,7 @@ export function describeEvent(event: GameEvent): string | null {
         ? `${NAME[event.color]} rolled three sixes and forfeits the turn`
         : `${NAME[event.color]} has no legal move`
     case 'takeover':
-      return `A bot took over the ${NAME[event.color]} seat`
+      return `${event.from} left. ${event.to} now plays ${NAME[event.color]}`
     case 'gameOver':
       return event.early ? 'Game ended early. Unfinished players are ranked by progress' : null
     default:

@@ -26,9 +26,18 @@ export const TIMING = {
   AUTO_ROLL_MS: 650,
   /** How long play holds while a player's finish is celebrated. */
   CELEBRATE_MS: 2200,
+  /** How long a notice (such as a bot taking a seat) stays on screen. Play continues. */
+  NOTICE_MS: 5000,
 } as const
 
 /** A player who just got all four tokens home, shown in a banner. */
+export interface Notice {
+  /** Changes for each new notice, so the UI can re-announce and restart its animation. */
+  id: number
+  color: Color
+  text: string
+}
+
 export interface Celebration {
   color: Color
   name: string
@@ -80,6 +89,8 @@ export interface LudoController {
   autoRoll: boolean
   /** A player who just finished, while their banner is up. */
   celebration: Celebration | null
+  /** A short message for everyone at the table, such as a bot taking over a seat. */
+  notice: Notice | null
   /** Every human has finished but bots are still playing: offer to end the game. */
   offerEnd: boolean
   /** Ends the game now, ranking the remaining bots by progress. */
@@ -126,6 +137,8 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
   const [rolling, setRolling] = useState(false)
   const [busy, setBusy] = useState(false)
   const [celebration, setCelebration] = useState<Celebration | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const noticeId = useRef(0)
   const [endDeclined, setEndDeclined] = useState(false)
 
   // Refs let scheduled callbacks read the latest values without stale closures.
@@ -170,6 +183,13 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     const next = useGameStore.getState().game!
     setShownPlayers(next.players)
     playOutcomeSounds(next.events)
+    const handover = next.events.find((e) => e.type === 'takeover')
+    if (handover && handover.type === 'takeover') {
+      const id = ++noticeId.current
+      setNotice({ id, color: handover.color, text: `${handover.from} left the game. ${handover.to} is playing for them now.` })
+      // Only clear our own notice, not a newer one.
+      later(() => setNotice((n) => (n?.id === id ? null : n)), TIMING.NOTICE_MS)
+    }
     const finish = next.events.find((e) => e.type === 'finish')
     if (finish && finish.type === 'finish' && next.phase !== 'gameOver') {
       const player = next.players.find((p) => p.color === finish.color)!
@@ -427,6 +447,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     isMine,
     autoRoll,
     celebration,
+    notice,
     offerEnd,
     endEarly,
     keepWatching,

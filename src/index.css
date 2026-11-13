@@ -324,6 +324,13 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 0.3em; border: 1px sol
 @keyframes fall { to { transform: translate(var(--drift), 110vh) rotate(720deg); } }
 
 /* Banner over the board when one player gets all pieces home. */
+.notice { display: flex; align-items: center; gap: 0.5rem; margin: 0 auto 0.6rem; max-width: 40rem; padding: 0.5rem 0.8rem; background: #fffdf8; border: 2px solid var(--notice-colour, #2b2620); border-left-width: 6px; border-radius: 10px; font-weight: 600; animation: noticeIn 0.3s ease-out both; }
+.notice svg { flex: none; color: var(--notice-colour, #2b2620); }
+.notice-red { --notice-colour: #d62828; }
+.notice-green { --notice-colour: #2a9d4b; }
+.notice-yellow { --notice-colour: #c99a00; }
+.notice-blue { --notice-colour: #1f6feb; }
+@keyframes noticeIn { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
 .finish-banner { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 5; overflow: hidden; border-radius: 10px; }
 .finish-text { position: relative; margin: 0; padding: 0.8rem 1.4rem; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; background: #fffdf8; border: 3px solid var(--finish-colour, #2b2620); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); font-size: 1.35rem; font-weight: 800; text-align: center; animation: bannerPop 0.45s cubic-bezier(.2,1.4,.4,1) both; }
 .finish-rank { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6450; }
@@ -335,7 +342,7 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 0.3em; border: 1px sol
 @keyframes bannerPop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .finish-text, .token, .token-shine, .halo, .die-rolling, .turn-arrow, .base-active, .confetti-piece, .panel, .clock-paused { animation: none !important; transition: none !important; }
+  .finish-text, .notice, .token, .token-shine, .halo, .die-rolling, .turn-arrow, .base-active, .confetti-piece, .panel, .clock-paused { animation: none !important; transition: none !important; }
 }
 
 /* ---------- Phones ---------- */

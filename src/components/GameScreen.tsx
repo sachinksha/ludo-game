@@ -123,7 +123,7 @@ function turnOf(name: string): string {
 }
 
 export function GameScreen({ ludo }: GameScreenProps) {
-  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, autoRoll, celebration, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, pickToken, undo, redo, togglePause } = ludo
+  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, autoRoll, celebration, notice, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, pickToken, undo, redo, togglePause } = ludo
   const leaveOnline = useOnlineStore((s) => s.leave)
   const reconnect = useOnlineStore((s) => s.reconnect)
   const hostView = useHostView()
@@ -323,6 +323,12 @@ export function GameScreen({ ludo }: GameScreenProps) {
           <span>The connection to the host dropped.</span>
           <button type="button" className="primary" onClick={reconnect}>Reconnect</button>
           <button type="button" onClick={leaveOnline}>Leave</button>
+        </div>
+      )}
+      {notice && (
+        <div key={notice.id} className={`notice notice-${notice.color}`} role="status">
+          <Icon name="robot" />
+          <span>{notice.text}</span>
         </div>
       )}
       {leftSeats.map((s) => (
