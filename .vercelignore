@@ -1,0 +1,2 @@
+# Tests live next to the code but must not become serverless routes.
+api/**/*.test.ts

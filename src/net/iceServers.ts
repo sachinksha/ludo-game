@@ -2,39 +2,27 @@
  * ICE servers: how two browsers find a network path to each other.
  *
  * - STUN tells a browser its public address. Enough when at least one side
- *   has a friendly NAT (home Wi-Fi to home Wi-Fi often works).
+ *   has a friendly NAT (two browsers on one machine, often one Wi-Fi).
  * - TURN relays traffic when no direct path exists. Mobile data (carrier-grade
  *   NAT), many offices and some routers need it. Without TURN, a phone on 4G/5G
  *   usually cannot reach a laptop on Wi-Fi.
  *
  * PeerJS used to ship a free TURN relay (turn.peerjs.com), but its hostnames no
- * longer resolve, so TURN is configured at build time instead. Free options:
- *
- *   VITE_ICE_SERVERS_URL   URL returning ICE servers as JSON, fetched when a
- *                          player hosts or joins. Metered's free TURN plan gives
- *                          one: https://<app>.metered.live/api/v1/turn/credentials?apiKey=<key>
- *                          Accepts `[...]` or `{ iceServers: [...] | {...} }`.
- *   VITE_TURN_URLS         Static alternative: comma-separated turn:/turns: URLs,
- *   VITE_TURN_USERNAME     with their username
- *   VITE_TURN_CREDENTIAL   and credential.
- *
- * Anything set with VITE_ is compiled into the public bundle, so use TURN
- * credentials meant for browsers (scoped or rate-limited), never a master secret.
+ * longer resolve. TURN credentials now come from our own endpoint, /api/turn
+ * (api/turn.ts), which keeps the provider's API key on the server. If the
+ * endpoint is missing (a static host without functions), unconfigured or slow,
+ * play continues with STUN only.
  */
 
 export const DEFAULT_STUN: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
 ]
 
-/** Give up on the credentials URL after this long and continue with STUN only. */
-export const ICE_FETCH_TIMEOUT_MS = 4000
+/** Same-origin endpoint served by api/turn.ts (and by the Vite dev server). */
+export const ICE_ENDPOINT = '/api/turn'
 
-export interface IceEnv {
-  VITE_ICE_SERVERS_URL?: string
-  VITE_TURN_URLS?: string
-  VITE_TURN_USERNAME?: string
-  VITE_TURN_CREDENTIAL?: string
-}
+/** Give up on the endpoint after this long and continue with STUN only. */
+export const ICE_FETCH_TIMEOUT_MS = 5000
 
 function isIceServer(value: unknown): value is RTCIceServer {
   if (typeof value !== 'object' || value === null) return false
@@ -46,8 +34,9 @@ function isIceServer(value: unknown): value is RTCIceServer {
 }
 
 /**
- * Reads ICE servers from a provider's JSON response. Handles Metered's bare
- * array and Cloudflare's `{ iceServers: {...} }`. Invalid entries are dropped.
+ * Reads ICE servers from a JSON response: `[...]` or `{ iceServers: [...] | {...} }`.
+ * Invalid entries are dropped and unknown fields removed. Treat the response
+ * as untrusted input, even from our own endpoint.
  */
 export function parseIceResponse(body: unknown): RTCIceServer[] {
   let list: unknown = body
@@ -62,40 +51,24 @@ export function parseIceResponse(body: unknown): RTCIceServer[] {
   }))
 }
 
-/** TURN servers given directly in environment variables. */
-export function staticTurn(env: IceEnv): RTCIceServer[] {
-  const urls = (env.VITE_TURN_URLS ?? '')
-    .split(',')
-    .map((u) => u.trim())
-    .filter((u) => /^turns?:/.test(u))
-  if (urls.length === 0) return []
-  return [{ urls, username: env.VITE_TURN_USERNAME ?? '', credential: env.VITE_TURN_CREDENTIAL ?? '' }]
-}
-
 /** True when any server can relay (a turn: or turns: URL). */
 export function hasRelay(servers: RTCIceServer[]): boolean {
   return servers.some((s) => [s.urls].flat().some((u) => /^turns?:/.test(u)))
 }
 
-/**
- * Builds the ICE server list. Never rejects: if the credentials URL fails or
- * is slow, play continues with STUN (and any static TURN), which still works
- * on many networks.
- */
+/** Builds the ICE server list. Never rejects. */
 export async function loadIceServers(
-  env: IceEnv = import.meta.env as IceEnv,
   fetchFn: typeof fetch = (...args) => fetch(...args),
+  endpoint: string = ICE_ENDPOINT,
 ): Promise<RTCIceServer[]> {
-  const servers = [...DEFAULT_STUN, ...staticTurn(env)]
-  const url = env.VITE_ICE_SERVERS_URL?.trim()
-  if (!url) return servers
+  const servers = [...DEFAULT_STUN]
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ICE_FETCH_TIMEOUT_MS)
   try {
-    const res = await fetchFn(url, { signal: controller.signal })
+    const res = await fetchFn(endpoint, { signal: controller.signal })
     if (res.ok) servers.push(...parseIceResponse(await res.json()))
   } catch {
-    // Fall through with what we have.
+    // No endpoint (static host), offline, or not JSON: STUN only.
   } finally {
     clearTimeout(timer)
   }

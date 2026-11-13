@@ -11,7 +11,7 @@ A browser Ludo game built with React, TypeScript, Vite and Zustand. Play on one 
 - **Celebrations** when any player gets all pieces home, not just at the end.
 - **Undo and redo**, **pause and resume**, and automatic pause when you switch away from a local game.
 - **Sound effects** synthesised in the browser (no audio files), with an on/off switch.
-- **Tested.** 168 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
+- **Tested.** 170 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
 - **Free software** under the GNU GPL v3 (see [Licence](#licence)).
 - **A learning guide** in [`docs/`](docs/README.md) that uses this codebase to teach React, state management, TypeScript, game loops, system design and testing, aimed at senior and principal frontend interviews.
 
@@ -117,7 +117,7 @@ Open the link, type a name, press **Join game**, and wait for the host to start.
 
 - **The host is the server.** Guests send only intents ("roll", "move piece 2"). The host checks it is that guest's turn and position, decides the outcome (including the dice, so guests cannot cheat them), and broadcasts the resulting action. Every browser runs the same deterministic engine, so applying the same actions gives the same game.
 - **The action log is the protocol.** The game was already stored as an initial state plus a list of actions (that is how undo works), so online play sends exactly those actions. A guest that misses one notices the gap in the sequence numbers and asks for a full copy.
-- **Free infrastructure, no backend.** [PeerJS](https://peerjs.com) introduces the two browsers through its free public signalling server, then the game runs over a direct, encrypted WebRTC data channel. Google's public STUN server helps browsers find each other. A TURN relay carries traffic when no direct path exists, which is normal on mobile data. You supply it with an environment variable, using a free provider (see [Connecting across networks](#connecting-across-networks)). The site itself stays a static Vercel deploy.
+- **Free infrastructure, no backend.** [PeerJS](https://peerjs.com) introduces the two browsers through its free public signalling server, then the game runs over a direct, encrypted WebRTC data channel. Google's public STUN server helps browsers find each other. A TURN relay carries traffic when no direct path exists, which is normal on mobile data. A small serverless function supplies its credentials from a free provider, keeping the provider key private (see [Connecting across networks](#connecting-across-networks)). The site is a static Vercel deploy plus that one optional function.
 - **Privacy.** The invite (host id, one-time token, expiry) lives in the URL fragment after `#`, which browsers never send to web servers. Nothing is stored on any server. Names exist only in the players' browsers.
 - **Invite expiry.** Links admit new players for 5 minutes. The host enforces the expiry and the token, so editing the link does not help. **Reset link** issues a new token and invalidates the old link.
 - **Reconnecting.** On joining, a guest receives a private seat secret, kept in that tab's `sessionStorage`. It lets the same tab reclaim the seat after a refresh or a dropped connection.
@@ -129,10 +129,10 @@ Two browsers on the same machine or the same Wi-Fi usually connect directly. A p
 PeerJS used to provide a free relay, but it has shut down. Without one, the game still works on the same network and on many home networks, but not on mobile data. To add a relay at no cost:
 
 1. Create a free account with a TURN provider. [Metered](https://www.metered.ca/stun-turn) has a free plan with no card, and its monthly allowance is far more than a turn-based game uses. Create an app and copy its **credentials API URL**.
-2. Set `VITE_ICE_SERVERS_URL` to that URL. In Vercel: **Project → Settings → Environment Variables**, then redeploy. For local development, put it in `.env.local` (see [.env.example](.env.example)).
-3. Alternatively, set static credentials with `VITE_TURN_URLS`, `VITE_TURN_USERNAME` and `VITE_TURN_CREDENTIAL`.
+2. In Vercel, go to **Project → Settings → Environment Variables**. Add `TURN_CREDENTIALS_URL` with that URL, mark it **Sensitive**, and redeploy. For local development, put the same line in `.env.local` (see [.env.example](.env.example)). `npm run dev` serves the endpoint too.
+3. Alternatively, set static credentials with `TURN_URLS`, `TURN_USERNAME` and `TURN_CREDENTIAL`.
 
-These values end up in the public JavaScript bundle (that is how browsers use TURN), so someone could read them and use your relay allowance. Most providers let you restrict a key to your domain. The browser console warns when no relay is configured.
+**How the key stays private.** The browser asks the site's own `/api/turn`, a free Vercel serverless function ([api/turn.ts](api/turn.ts)). It reads the private variable, calls the provider and returns only the relay details. The variables have no `VITE_` prefix, so Vite never puts them in the JavaScript bundle. The relay username and password still reach the browser, because WebRTC runs there and needs them. Anyone who can open the site can also call `/api/turn`, so the function hides the provider key but does not stop someone from using your relay allowance. Set a usage limit in the provider's dashboard. On a static host without serverless functions, `/api/turn` does not exist and play falls back to STUN only. The browser console warns when no relay is available.
 
 This account is only for you, the person deploying the game. Players still join with a link and a name.
 
@@ -212,6 +212,7 @@ src/
 │   ├── protocol.ts        Message types and strict validation of guest input
 │   ├── transport.ts       The Network/Channel interfaces (the seam for tests)
 │   ├── peerNetwork.ts     WebRTC via PeerJS, loaded on demand
+│   ├── iceServers.ts      STUN defaults plus TURN details from /api/turn
 │   ├── memoryNetwork.ts   In-memory network for tests
 │   ├── hostSession.ts     Seats, invites, expiry, reconnects, broadcasting (authority)
 │   ├── guestSession.ts    Connecting, intents, receiving actions
@@ -229,6 +230,9 @@ src/
 ├── audio/sfx.ts           Web Audio sound effects, with mute
 ├── App.tsx                Chooses setup, lobby, join or game from the stores
 └── main.tsx               Entry point
+
+api/
+└── turn.ts                Vercel function: private TURN_* variables → relay details
 ```
 
 ### Design principles
@@ -249,7 +253,7 @@ The [learning guide](docs/README.md) explains each of these in depth.
 npm test
 ```
 
-168 tests across:
+170 tests across:
 
 - **Engine:** dice mapping, comeback odds, creation and names, lane entry and exact finish, captures (including stacks) and safe squares, extra rolls, automatic moves, the three-sixes forfeit, passes, finishing, ending early and bot takeover.
 - **Bots:** every style still captures and finishes, guardians run from threats, racers push leaders, and close calls vary.
@@ -262,7 +266,7 @@ The network tests use an in-memory transport. Real WebRTC between two browsers h
 
 ## Deploying
 
-This is a static Vite app. On Vercel: import the repository, keep the defaults (framework **Vite**, build `npm run build`, output `dist`) and deploy. No environment variables, no backend. Online play uses the free public PeerJS servers.
+This is a static Vite app plus one optional serverless function. On Vercel: import the repository, keep the defaults (framework **Vite**, build `npm run build`, output `dist`) and deploy. Vercel picks up [api/turn.ts](api/turn.ts) automatically. Online play uses the free public PeerJS signalling server. For players on mobile data, also set `TURN_CREDENTIALS_URL` (see [Connecting across networks](#connecting-across-networks)). Any static host works too, but without the function online play is limited to networks that connect directly.
 
 ## Browser support
 

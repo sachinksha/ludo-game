@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_STUN, hasRelay, loadIceServers, parseIceResponse, staticTurn } from './iceServers'
+import { DEFAULT_STUN, ICE_ENDPOINT, hasRelay, loadIceServers, parseIceResponse } from './iceServers'
 
 const turn = { urls: 'turn:relay.example:3478', username: 'u', credential: 'c' }
 
-function okResponse(body: unknown) {
-  return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as Response)
+function respond(body: unknown, ok = true) {
+  return vi.fn(() => Promise.resolve({ ok, json: () => Promise.resolve(body) } as Response))
 }
 
 describe('parseIceResponse', () => {
-  it('reads a bare array (Metered)', () => {
+  it('reads our endpoint shape and a bare array', () => {
+    expect(parseIceResponse({ iceServers: [turn] })).toEqual([turn])
     expect(parseIceResponse([turn])).toEqual([turn])
   })
 
@@ -24,36 +25,25 @@ describe('parseIceResponse', () => {
   })
 })
 
-describe('staticTurn', () => {
-  it('builds one server from comma-separated turn URLs', () => {
-    expect(
-      staticTurn({ VITE_TURN_URLS: 'turn:a:80, turns:a:443 ,http://bad', VITE_TURN_USERNAME: 'u', VITE_TURN_CREDENTIAL: 'c' }),
-    ).toEqual([{ urls: ['turn:a:80', 'turns:a:443'], username: 'u', credential: 'c' }])
-  })
-
-  it('is empty when not configured', () => {
-    expect(staticTurn({})).toEqual([])
-  })
-})
-
 describe('loadIceServers', () => {
-  it('uses STUN only with no configuration', async () => {
-    const servers = await loadIceServers({}, vi.fn())
-    expect(servers).toEqual(DEFAULT_STUN)
-    expect(hasRelay(servers)).toBe(false)
-  })
-
-  it('adds servers from the credentials URL', async () => {
-    const fetchFn = vi.fn(() => okResponse([turn]))
-    const servers = await loadIceServers({ VITE_ICE_SERVERS_URL: 'https://x/creds' }, fetchFn as unknown as typeof fetch)
-    expect(fetchFn).toHaveBeenCalledWith('https://x/creds', expect.anything())
+  it('adds relays from the endpoint', async () => {
+    const fetchFn = respond({ iceServers: [turn] })
+    const servers = await loadIceServers(fetchFn as unknown as typeof fetch)
+    expect(fetchFn).toHaveBeenCalledWith(ICE_ENDPOINT, expect.anything())
     expect(servers).toEqual([...DEFAULT_STUN, turn])
     expect(hasRelay(servers)).toBe(true)
   })
 
-  it('falls back to STUN when the credentials URL fails', async () => {
+  it('uses STUN only when the endpoint is missing or unconfigured', async () => {
+    const missing = await loadIceServers(respond('<html>', false) as unknown as typeof fetch)
+    const empty = await loadIceServers(respond({ iceServers: [] }) as unknown as typeof fetch)
+    expect(missing).toEqual(DEFAULT_STUN)
+    expect(empty).toEqual(DEFAULT_STUN)
+    expect(hasRelay(empty)).toBe(false)
+  })
+
+  it('uses STUN only when the request fails', async () => {
     const fetchFn = vi.fn(() => Promise.reject(new Error('offline')))
-    const servers = await loadIceServers({ VITE_ICE_SERVERS_URL: 'https://x' }, fetchFn as unknown as typeof fetch)
-    expect(servers).toEqual(DEFAULT_STUN)
+    expect(await loadIceServers(fetchFn as unknown as typeof fetch)).toEqual(DEFAULT_STUN)
   })
 })

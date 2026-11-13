@@ -4,8 +4,8 @@
  * - Signalling (exchanging connection details) uses the free public PeerJS
  *   server, 0.peerjs.com. It only introduces the two browsers; game messages
  *   never pass through it.
- * - NAT traversal uses Google's public STUN servers plus a TURN relay if one
- *   is configured (see iceServers.ts). Without TURN, players on mobile data or
+ * - NAT traversal uses Google's public STUN servers plus a TURN relay from
+ *   /api/turn if one is configured (see iceServers.ts). Without TURN, players on mobile data or
  *   strict networks often cannot connect.
  *
  * None of these cost anything or need an account, but they are best-effort
@@ -30,7 +30,7 @@ async function createPeer(): Promise<PeerType> {
     warned = true
     console.warn(
       '[ludo] No TURN relay configured. Online play may fail between different networks ' +
-        '(for example mobile data and Wi-Fi). See src/net/iceServers.ts.',
+        '(for example mobile data and Wi-Fi). Set TURN_CREDENTIALS_URL; see api/turn.ts.',
     )
   }
   return new Peer({ config: { iceServers } })

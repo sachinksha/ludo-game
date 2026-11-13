@@ -45,7 +45,7 @@ Every multiplayer design has to answer "who decides what happened?"
 
 1. **Signalling.** Two browsers cannot find each other directly. They exchange connection offers through a signalling server. Here that is PeerJS's free server; it never sees game messages.
 2. **ICE and STUN.** Each browser asks a STUN server "what is my public address?" and gathers candidate addresses.
-3. **TURN.** If both sides are behind strict NATs, traffic is relayed through a TURN server. Mobile data is the usual case: carriers use carrier-grade NAT with per-destination port mapping (symmetric NAT), so the address STUN discovers is useless to the other peer. PeerJS used to bundle a free TURN relay; it shut down, so [iceServers.ts](../src/net/iceServers.ts) reads TURN settings from build-time environment variables (for example a free Metered credentials URL) and falls back to STUN only.
+3. **TURN.** If both sides are behind strict NATs, traffic is relayed through a TURN server. Mobile data is the usual case: carriers use carrier-grade NAT with per-destination port mapping (symmetric NAT), so the address STUN discovers is useless to the other peer. PeerJS used to bundle a free TURN relay; it shut down, so the browser fetches relay details from the site's own `/api/turn` serverless function ([api/turn.ts](../api/turn.ts)), and [iceServers.ts](../src/net/iceServers.ts) falls back to STUN only if that fails.
 4. **DTLS.** The data channel is encrypted end to end between the browsers.
 
 ## 4. Why this codebase made it easy
@@ -137,11 +137,23 @@ The first real test passed between two browsers on one laptop and failed between
 - Free third-party dependencies can disappear. Make them configurable and fail soft (here: fall back to STUN and warn in the console).
 - Diagnose the layer before the code: signalling worked (peers registered), so the failure had to be in ICE.
 
+### Keeping the TURN key off the client (backend-for-frontend)
+
+The first version read the provider URL from a `VITE_` variable, and Vercel warned that the prefix makes the value public. Vite inlines every `VITE_*` variable into the bundle at build time, so anything there is readable by anyone.
+
+The fix is a minimal **backend-for-frontend**: one serverless function that holds the secret, calls the provider and returns only what the browser needs. Points worth making in an interview:
+- **Know what you are actually protecting.** The provider key (which could be revoked, rotated or used to read account data) moves to the server. The TURN username and password cannot move: the browser's WebRTC stack needs them. So the gain is real but limited.
+- **The endpoint is public.** Hiding a key behind an open endpoint stops key theft, not quota abuse. Next steps if abuse appeared: short-lived credentials (TURN REST API style, HMAC with expiry, which Cloudflare and coturn support), an origin check, and rate limiting per IP.
+- **Fail soft.** No function (static host), no configuration, or a slow provider all lead to STUN only, never to a broken page.
+- **Dev/prod parity.** A Vite plugin serves the same handler at `/api/turn` during `npm run dev`, so local development needs no extra tool. The function has no imports, so the platform runs it without bundling.
+- **Untrusted input both ways.** The browser validates the endpoint's JSON with `parseIceResponse` even though it is our own server.
+
 ## 10. How the code is organised
 
 - [transport.ts](../src/net/transport.ts): `Network` and `Channel` interfaces (the port).
 - [peerNetwork.ts](../src/net/peerNetwork.ts): PeerJS adapter, loaded with dynamic `import()`.
-- [iceServers.ts](../src/net/iceServers.ts): STUN/TURN configuration from environment variables, with a fail-soft fetch.
+- [iceServers.ts](../src/net/iceServers.ts): STUN defaults plus a fail-soft fetch of `/api/turn`.
+- [api/turn.ts](../api/turn.ts): Vercel function that turns private `TURN_*` variables into relay details.
 - [memoryNetwork.ts](../src/net/memoryNetwork.ts): test adapter.
 - [hostSession.ts](../src/net/hostSession.ts): seats, admission, expiry, reconnection, broadcast, intent forwarding.
 - [guestSession.ts](../src/net/guestSession.ts): connect, hello, receive, intents, resync.

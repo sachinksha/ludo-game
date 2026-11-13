@@ -58,6 +58,9 @@ Hosting fails with a clear message; local play works. Short term: allow configur
 **Q: Your WebRTC feature works locally but not from a phone on 4G. Why?**
 Same-machine connections use local candidates, so NAT never comes up. Carrier-grade NAT on mobile data is usually symmetric, so STUN-discovered addresses do not work and a TURN relay is required. Here the default free relay had disappeared; the fix was configurable TURN with a STUN-only fallback. ([Chapter 8](08-multiplayer-system-design.md))
 
+**Q: How do you keep an API key out of a single-page app?**
+Anything the bundle contains is public, including build-time env variables such as Vite's `VITE_*`. Put the key behind a small server endpoint (backend-for-frontend) that returns only what the client needs. Then say what is still exposed: here the TURN username and password must reach the browser, and the endpoint itself is open, so add short-lived credentials and rate limits if abuse appears. ([Chapter 8](08-multiplayer-system-design.md))
+
 ## Testing
 
 **Q: How do you test time-based UI?**
