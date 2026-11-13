@@ -1,4 +1,5 @@
 import type { Color, Player } from '../game/types'
+import { PERSONA_LABEL } from '../game/bot'
 import { COLOR_NAME } from './colors'
 import { Die } from './Dice'
 
@@ -27,6 +28,11 @@ export function PlayerPanel({ player, active, canRoll, rolling, onRoll, area, fi
         <span className="panel-name-text" title={player.name}>{player.name}</span>
         {finished && <span className="panel-rank">#{player.finishRank}</span>}
       </header>
+      {player.bot && (
+        <span className="panel-persona" title="This bot's playing style for this game">
+          {PERSONA_LABEL[player.bot.persona]}
+        </span>
+      )}
       <div className="panel-dice">
         {active && <span className="turn-arrow" aria-hidden="true" />}
         <Die

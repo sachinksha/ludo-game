@@ -4,6 +4,44 @@ import { createGame } from '../game/engine'
 import { replay, undoIndex } from '../game/history'
 import type { GameAction, GameState, PlayerConfig } from '../game/types'
 
+/** Player preferences kept in the browser between visits. */
+export interface Settings {
+  /** Roll automatically for human players when their turn comes. */
+  autoRoll: boolean
+  /** Raise the odds of a six for players stuck in the base for a long time. */
+  comebackDice: boolean
+}
+
+const SETTINGS_KEY = 'ludo:settings'
+const DEFAULT_SETTINGS: Settings = { autoRoll: true, comebackDice: true }
+
+function loadSettings(): Settings {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY)
+    if (!raw) return DEFAULT_SETTINGS
+    const parsed = JSON.parse(raw) as Partial<Settings>
+    return {
+      autoRoll: typeof parsed.autoRoll === 'boolean' ? parsed.autoRoll : DEFAULT_SETTINGS.autoRoll,
+      comebackDice: typeof parsed.comebackDice === 'boolean' ? parsed.comebackDice : DEFAULT_SETTINGS.comebackDice,
+    }
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
+function saveSettings(settings: Settings): void {
+  try {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+  } catch {
+    // Storage blocked or full: the setting still applies for this visit.
+  }
+}
+
+/** A game needs at least one human seat; bot-only games are not started. */
+export function hasHuman(configs: PlayerConfig[]): boolean {
+  return configs.some((c) => c.kind === 'human')
+}
+
 export interface LogEntry {
   id: string
   text: string
@@ -29,14 +67,18 @@ export interface GameStoreState {
   paused: boolean
   /** Whether the game log is expanded. Hidden by default; kept across games. */
   logOpen: boolean
+  settings: Settings
 
   start: (configs: PlayerConfig[]) => void
+  /** Replaces the game with one received from an online host. */
+  load: (initial: GameState, actions: GameAction[], paused: boolean) => void
   /** Adds a decision to the history. Clears the redo stack. */
   record: (action: GameAction) => void
   undo: () => void
   redo: () => void
   setPaused: (paused: boolean) => void
   setLogOpen: (open: boolean) => void
+  updateSettings: (patch: Partial<Settings>) => void
   /** Discards the current game and returns to setup. */
   abort: () => void
 }
@@ -66,8 +108,10 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   log: [],
   paused: false,
   logOpen: false,
+  settings: loadSettings(),
 
   start: (configs) => {
+    if (!hasHuman(configs)) return
     const initial = createGame(configs)
     set((s) => ({
       configs,
@@ -78,6 +122,18 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       redoStack: [],
       paused: false,
       ...derive(initial, []),
+    }))
+  },
+
+  load: (initial, actions, paused) => {
+    set((s) => ({
+      configs: null,
+      session: s.session + 1,
+      initial,
+      actions,
+      redoStack: [],
+      paused,
+      ...derive(initial, actions),
     }))
   },
 
@@ -111,6 +167,12 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   setPaused: (paused) => set({ paused }),
 
   setLogOpen: (logOpen) => set({ logOpen }),
+
+  updateSettings: (patch) => {
+    const settings = { ...get().settings, ...patch }
+    saveSettings(settings)
+    set({ settings })
+  },
 
   abort: () =>
     set((s) => ({

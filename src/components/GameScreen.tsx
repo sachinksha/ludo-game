@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { isMuted, setMuted } from '../audio/sfx'
 import { formatClock, useGameClock } from '../hooks/useGameClock'
 import type { LudoController } from '../hooks/useLudoGame'
+import { useGuestView, useHostView } from '../hooks/useOnline'
 import { useGameStore } from '../store/gameStore'
-import { COLOR_NAME } from './colors'
+import { useOnlineStore } from '../store/onlineStore'
+import { COLOR_HEX, COLOR_NAME } from './colors'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Icon, type IconName } from './Icons'
 import { PlayerPanel } from './PlayerPanel'
@@ -35,29 +37,82 @@ function ToolButton({ icon, label, onClick, disabled, pressed, shortcut, shortcu
   )
 }
 
-/** Sound on/off as a labelled switch with a speaker logo. */
-function SoundSwitch() {
-  const [muted, setMutedState] = useState(isMuted())
-  const on = !muted
+/** A labelled on/off switch with a logo, styled like the toolbar buttons. */
+function ToggleSwitch({ icon, label, on, onChange, title }: { icon: IconName; label: string; on: boolean; onChange: (on: boolean) => void; title?: string }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      className="tool sound-switch"
-      onClick={() => {
-        setMuted(on)
-        setMutedState(on)
-      }}
-    >
-      <Icon name="speaker" />
-      <span className="tool-label">Sound</span>
+    <button type="button" role="switch" aria-checked={on} className="tool tool-switch" title={title} onClick={() => onChange(!on)}>
+      <Icon name={icon} />
+      <span className="tool-label">{label}</span>
       <span className={`switch-track${on ? ' switch-on' : ''}`} aria-hidden="true">
         <span className="switch-knob" />
       </span>
     </button>
   )
 }
+
+/** Sound on/off. Mute state lives in the audio module. */
+function SoundSwitch() {
+  const [muted, setMutedState] = useState(isMuted())
+  return (
+    <ToggleSwitch
+      icon="speaker"
+      label="Sound"
+      on={!muted}
+      onChange={(on) => {
+        setMuted(!on)
+        setMutedState(!on)
+      }}
+    />
+  )
+}
+
+/** Auto roll on/off, saved with the other settings. */
+function AutoRollSwitch() {
+  const autoRoll = useGameStore((s) => s.settings.autoRoll)
+  const updateSettings = useGameStore((s) => s.updateSettings)
+  return (
+    <ToggleSwitch
+      icon="dice"
+      label="Auto roll"
+      on={autoRoll}
+      onChange={(on) => updateSettings({ autoRoll: on })}
+      title="Roll the dice automatically on your turn. You still choose which piece to move."
+    />
+  )
+}
+
+const RANK_WORD = ['', '1st', '2nd', '3rd', '4th']
+
+/** Banner over the board when a player gets all four pieces home. */
+function FinishBanner({ name, color, rank }: { name: string; color: Color; rank: number }) {
+  const who = name === 'You' ? 'You finished' : `${name} finished`
+  return (
+    <div className={`finish-banner finish-${color}`} role="status">
+      <div className="confetti confetti-burst" aria-hidden="true">
+        {BURST.map((p) => (
+          <span
+            key={p.id}
+            className="confetti-piece confetti-burst-piece"
+            style={{ left: `${p.left}%`, background: COLOR_HEX[color], animationDelay: `${p.delay}s`, ['--drift' as string]: `${p.drift}px` }}
+          />
+        ))}
+      </div>
+      <p className="finish-text">
+        <span className="finish-rank">{RANK_WORD[rank] ?? `#${rank}`}</span>
+        {who}!
+      </p>
+    </div>
+  )
+}
+
+/** Fixed confetti layout for the finish banner, so renders stay pure. */
+const BURST = Array.from({ length: 28 }, (_, i) => {
+  const unit = (seed: number) => {
+    const x = Math.sin(seed * 12.9898) * 43758.5453
+    return x - Math.floor(x)
+  }
+  return { id: i, left: unit(i + 7) * 100, delay: unit(i + 77) * 0.5, drift: (unit(i + 177) - 0.5) * 80 }
+})
 
 /** True on touch-only devices, where keyboard hints make no sense. */
 const IS_TOUCH = typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches === true
@@ -68,7 +123,13 @@ function turnOf(name: string): string {
 }
 
 export function GameScreen({ ludo }: GameScreenProps) {
-  const { game, shownPlayers, rolling, busy, paused, humanTurn, canUndo, canRedo, roll, pickToken, undo, redo, togglePause } = ludo
+  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, autoRoll, celebration, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, pickToken, undo, redo, togglePause } = ludo
+  const leaveOnline = useOnlineStore((s) => s.leave)
+  const reconnect = useOnlineStore((s) => s.reconnect)
+  const hostView = useHostView()
+  const guestView = useGuestView()
+  const online = role !== 'local'
+  const isGuest = role === 'guest'
   const log = useGameStore((s) => s.log)
   const actions = useGameStore((s) => s.actions)
   const start = useGameStore((s) => s.start)
@@ -99,12 +160,25 @@ export function GameScreen({ ludo }: GameScreenProps) {
 
   const canRoll = humanTurn && game.phase === 'roll' && !busy && !paused
 
-  const doSettings = () => abort()
+  // Online, leaving setup ends the session (host) or leaves it (guest).
+  const doSettings = () => (online ? leaveOnline() : abort())
   const doNew = () => {
-    if (configs) start(configs)
+    if (isGuest) return
+    // Hosts start from the session's current seats (a seat a bot took over stays a bot).
+    if (role === 'host') useOnlineStore.getState().startHostedGame()
+    else if (configs) start(configs)
   }
-  const requestSettings = () => (inProgress ? setPending('settings') : doSettings())
-  const requestNew = () => (inProgress ? setPending('new') : doNew())
+  const requestSettings = () => (inProgress || (online && !gameOver) ? setPending('settings') : doSettings())
+  const requestNew = () => {
+    if (isGuest) return
+    if (inProgress) setPending('new')
+    else doNew()
+  }
+
+  // Host: online players who dropped out of a game still in progress.
+  const leftSeats = !gameOver && hostView
+    ? hostView.seats.filter((s) => s.remote && s.joined && !s.connected && game.players.some((p) => p.color === s.color && p.remote && p.finishRank === null))
+    : []
   const confirmPending = () => {
     if (pending === 'settings') doSettings()
     if (pending === 'new') doNew()
@@ -118,7 +192,7 @@ export function GameScreen({ ludo }: GameScreenProps) {
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return
       const target = e.target as HTMLElement | null
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return
-      if (pending) return
+      if (pending || offerEnd) return
 
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
       // Holding a key down should not flip pause or reopen dialogs repeatedly.
@@ -179,15 +253,20 @@ export function GameScreen({ ludo }: GameScreenProps) {
 
   let prompt: string
   if (gameOver) prompt = 'Game over'
+  else if (paused && isGuest) prompt = 'The host paused the game.'
   else if (paused) prompt = IS_TOUCH ? 'Paused. Tap Resume to keep playing.' : 'Paused. Press P or Resume to keep playing.'
   else if (busy) prompt = 'Moving...'
+  else if (celebration) prompt = celebration.name === 'You' ? 'You got all your pieces home!' : `${celebration.name} got all their pieces home!`
   else if (!humanTurn) prompt = `${current.name} is playing...`
+  else if (game.phase === 'roll' && autoRoll) prompt = current.name === 'You' ? 'Your turn. Rolling...' : `${current.name}, your turn. Rolling...`
   else if (game.phase === 'roll') prompt = `${turnOf(current.name)} ${IS_TOUCH ? 'Tap your dice to roll.' : 'Press Space or tap your dice to roll.'}`
   else prompt = IS_TOUCH ? 'Tap a highlighted piece to move it.' : 'Choose a highlighted piece: press its number or click it.'
 
+  // Only seated colours get a panel: a two-player game has no green or blue seat.
   const panel = (color: Color) => {
-    const player = shownPlayers.find((p) => p.color === color)!
-    const seat = game.players.find((p) => p.color === color)!
+    const player = shownPlayers.find((p) => p.color === color)
+    const seat = game.players.find((p) => p.color === color)
+    if (!player || !seat) return null
     return (
       <PlayerPanel
         key={color}
@@ -213,9 +292,9 @@ export function GameScreen({ ludo }: GameScreenProps) {
           </span>
         </div>
         <div className="toolbar-actions">
-          <ToolButton icon="undo" label="Undo" onClick={undo} disabled={!canUndo} shortcut="ArrowLeft" shortcutLabel="←" />
-          <ToolButton icon="redo" label="Redo" onClick={redo} disabled={!canRedo} shortcut="ArrowRight" shortcutLabel="→" />
-          <ToolButton
+          {!online && <ToolButton icon="undo" label="Undo" onClick={undo} disabled={!canUndo} shortcut="ArrowLeft" shortcutLabel="←" />}
+          {!online && <ToolButton icon="redo" label="Redo" onClick={redo} disabled={!canRedo} shortcut="ArrowRight" shortcutLabel="→" />}
+          {canPause && <ToolButton
             icon={paused ? 'play' : 'pause'}
             label={paused ? 'Resume' : 'Pause'}
             onClick={togglePause}
@@ -223,14 +302,35 @@ export function GameScreen({ ludo }: GameScreenProps) {
             pressed={paused}
             shortcut="P"
             shortcutLabel="P"
-          />
+          />}
+          <AutoRollSwitch />
           <SoundSwitch />
-          <ToolButton icon="gear" label="Settings" onClick={requestSettings} shortcut="S" shortcutLabel="S" />
-          <ToolButton icon="restart" label="New game" onClick={requestNew} shortcut="N" shortcutLabel="N" />
+          <ToolButton
+            icon="gear"
+            label={role === 'host' ? 'End online game' : isGuest ? 'Leave game' : 'Settings'}
+            onClick={requestSettings}
+            shortcut="S"
+            shortcutLabel="S"
+          />
+          {!isGuest && <ToolButton icon="restart" label="New game" onClick={requestNew} shortcut="N" shortcutLabel="N" />}
         </div>
       </header>
 
       <p className="prompt" aria-live="polite">{prompt}</p>
+
+      {isGuest && guestView?.status === 'lost' && (
+        <div className="net-banner" role="alert">
+          <span>The connection to the host dropped.</span>
+          <button type="button" className="primary" onClick={reconnect}>Reconnect</button>
+          <button type="button" onClick={leaveOnline}>Leave</button>
+        </div>
+      )}
+      {leftSeats.map((s) => (
+        <div key={s.color} className="net-banner" role="alert">
+          <span>{s.name} lost connection. They can rejoin with their link, or a bot can take over.</span>
+          <button type="button" onClick={() => takeoverSeat(s.color)} disabled={busy}>Let a bot play</button>
+        </div>
+      ))}
 
       <div className="game-body">
         <div className={`table${paused ? ' table-paused' : ''}`}>
@@ -245,12 +345,15 @@ export function GameScreen({ ludo }: GameScreenProps) {
             onPick={pickToken}
             labelColor={humanTurn ? current.color : null}
           />
+          {celebration && <FinishBanner key={celebration.color} {...celebration} />}
           {paused && (
             <div className="pause-veil" role="status">
-              <p>Game paused</p>
-              <button type="button" className="primary" onClick={togglePause}>
-                <Icon name="play" /> <span>Resume</span>
-              </button>
+              <p>{isGuest ? 'The host paused the game' : 'Game paused'}</p>
+              {canPause && (
+                <button type="button" className="primary" onClick={togglePause}>
+                  <Icon name="play" /> <span>Resume</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -297,22 +400,53 @@ export function GameScreen({ ludo }: GameScreenProps) {
 
       {pending && (
         <ConfirmDialog
-          title="Abort the current game?"
-          message="This game is still in progress. Aborting discards it, and it cannot be recovered."
-          confirmLabel={pending === 'settings' ? 'Abort and open settings' : 'Abort and start new'}
+          title={role === 'host' && pending === 'settings' ? 'End the online game?' : isGuest ? 'Leave this game?' : 'Abort the current game?'}
+          message={
+            role === 'host' && pending === 'settings'
+              ? 'This ends the game for everyone and closes the invite link.'
+              : isGuest
+                ? 'You will leave the game. The host can let a bot take your seat.'
+                : role === 'host'
+                  ? 'This game is still in progress. A new game starts for everyone with the same seats.'
+                  : 'This game is still in progress. Aborting discards it, and it cannot be recovered.'
+          }
+          confirmLabel={
+            role === 'host' && pending === 'settings'
+              ? 'End for everyone'
+              : isGuest
+                ? 'Leave'
+                : pending === 'settings'
+                  ? 'Abort and open settings'
+                  : 'Abort and start new'
+          }
           cancelLabel="Keep playing"
           onConfirm={confirmPending}
           onCancel={() => setPending(null)}
         />
       )}
 
+      {offerEnd && !pending && (
+        <ConfirmDialog
+          title={game.players.filter((p) => p.kind === 'human').length > 1 ? 'All human players have finished' : 'You have finished'}
+          message="Only bots are left. End the game now and rank the remaining bots by how far their pieces have travelled, or keep watching them play it out."
+          confirmLabel="End game"
+          cancelLabel="Keep watching"
+          confirmClass="primary"
+          onConfirm={endEarly}
+          onCancel={keepWatching}
+        />
+      )}
+
       {gameOver && !busy && (
         <WinOverlay
+          early={game.events.some((e) => e.type === 'gameOver' && e.early)}
           winners={game.winners}
           time={formatClock(elapsed)}
           names={Object.fromEntries(game.players.map((p) => [p.color, p.name]))}
-          onNewGame={doNew}
+          onNewGame={isGuest ? undefined : doNew}
           onSetup={doSettings}
+          setupLabel={role === 'host' ? 'End online game' : isGuest ? 'Leave' : undefined}
+          note={isGuest ? 'Waiting for the host to start another game...' : undefined}
         />
       )}
 

@@ -67,7 +67,48 @@ legend { font-weight: 600; margin-bottom: 0.5rem; }
 .seat-error { color: #b42318; font-size: 0.8rem; }
 .seat-bot-name { color: #6b6450; font-size: 0.9rem; padding: 0.35rem 0; }
 .setup-hint { color: #6b6450; font-size: 0.85rem; margin: -0.8rem 0 0; }
+.setup-need-human { margin: 0.6rem 0 0; }
+.setup-option { display: flex; align-items: flex-start; gap: 0.6rem; max-width: 420px; margin: 1.2rem auto 0; text-align: left; cursor: pointer; }
+.setup-option input { margin-top: 0.25rem; width: 1.1rem; height: 1.1rem; accent-color: #2a9d4b; }
+.setup-option-hint { display: block; color: #6b6450; font-size: 0.85rem; }
 .setup .primary { margin-top: 1.5rem; padding: 0.7rem 1.6rem; font-size: 1.05rem; }
+
+/* Two-player colour picker */
+.colour-picker .setup-hint { margin: 0 0 0.5rem; }
+.colour-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
+.colour-chip { display: inline-flex; align-items: center; gap: 0.45rem; border-radius: 999px; padding: 0.35rem 0.85rem 0.35rem 0.4rem; }
+.colour-chip .seat-colour { width: 22px; height: 22px; border-width: 2px; }
+.colour-chip[aria-pressed="true"] { border-color: #1d1d1f; box-shadow: inset 0 0 0 1px #1d1d1f; font-weight: 600; }
+.colour-chip[aria-pressed="false"] { opacity: 0.7; }
+.colour-chip-red .seat-colour { background: #d62828; }
+.colour-chip-green .seat-colour { background: #2a9d4b; }
+.colour-chip-yellow .seat-colour { background: #f4c20d; }
+.colour-chip-blue .seat-colour { background: #1f6feb; }
+
+/* ---------- Online: lobby and join ---------- */
+.lobby { max-width: 560px; margin: 0 auto; }
+.lobby h1 { font-size: 2.2rem; }
+.invite { display: grid; gap: 0.5rem; margin-bottom: 1.5rem; }
+.invite-link { width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #b9ae98; border-radius: 8px; background: #fffdf8; font: inherit; font-size: 0.85rem; color: #4a4536; }
+.invite-actions { display: flex; gap: 0.5rem; justify-content: center; }
+.invite-expiry { margin: 0; font-size: 0.9rem; color: #4a4536; }
+.invite-expired { color: #b42318; font-weight: 600; }
+.link-button { border: none; background: none; padding: 0; color: #1f5fbf; text-decoration: underline; font-size: inherit; }
+.lobby .primary { margin-top: 0; }
+.lobby-heading { font-size: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; max-width: 380px; margin: 0 auto 0.5rem; }
+.lobby-seats { list-style: none; margin: 0 auto 1.25rem; padding: 0; display: grid; gap: 0.4rem; max-width: 380px; text-align: left; }
+.lobby-seat { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.75rem; border: 1px solid #e3dccb; border-radius: 10px; background: #fffdf8; }
+.lobby-seat-open { border-style: dashed; background: transparent; }
+.lobby-seat-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-seat-status { color: #6b6450; font-size: 0.9rem; }
+.lobby-actions { margin-top: 0.5rem; align-items: center; }
+.lobby-note { margin: 1.25rem auto 0; max-width: 420px; }
+.join-body { display: grid; gap: 0.75rem; justify-items: center; margin-bottom: 1.5rem; }
+.join-form { display: grid; gap: 0.5rem; justify-items: center; width: 100%; max-width: 280px; }
+.join-form label { font-weight: 600; }
+.lobby .join-form .primary { margin-top: 0.25rem; }
+.lobby-leave { margin-top: 0.5rem; }
+.net-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 0.75rem; margin: 0 auto 0.75rem; padding: 0.5rem 0.75rem; max-width: 760px; border: 1px solid #e0b453; border-radius: 10px; background: #fff7e0; color: #4a3a10; font-size: 0.92rem; }
 
 /* ---------- Toolbar ---------- */
 .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
@@ -78,7 +119,7 @@ legend { font-weight: 600; margin-bottom: 0.5rem; }
 @keyframes clockBlink { to { visibility: hidden; } }
 .toolbar-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
 .tool { display: inline-flex; align-items: center; gap: 0.4rem; }
-.sound-switch { gap: 0.5rem; }
+.tool-switch { gap: 0.5rem; }
 .switch-track { position: relative; width: 36px; height: 20px; border-radius: 999px; background: #b9ae98; transition: background 0.15s; display: inline-block; }
 .switch-track.switch-on { background: #2a9d4b; }
 .switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
@@ -158,6 +199,7 @@ legend { font-weight: 600; margin-bottom: 0.5rem; }
 .dot-blue { background: #1f6feb; }
 .panel-rank { margin-left: 0.2rem; font-size: 0.8rem; color: #5a5446; }
 
+.panel-persona { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #6b6450; margin-top: 0.1rem; }
 .panel-dice { position: relative; display: flex; justify-content: center; padding-top: 22px; }
 
 /* Bouncing arrow above the die of the player to move. */
@@ -281,8 +323,19 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 0.3em; border: 1px sol
 .confetti-piece { position: absolute; top: -20px; width: 10px; height: 14px; border-radius: 2px; animation-name: fall; animation-timing-function: ease-in; animation-iteration-count: infinite; }
 @keyframes fall { to { transform: translate(var(--drift), 110vh) rotate(720deg); } }
 
+/* Banner over the board when one player gets all pieces home. */
+.finish-banner { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 5; overflow: hidden; border-radius: 10px; }
+.finish-text { position: relative; margin: 0; padding: 0.8rem 1.4rem; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; background: #fffdf8; border: 3px solid var(--finish-colour, #2b2620); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); font-size: 1.35rem; font-weight: 800; text-align: center; animation: bannerPop 0.45s cubic-bezier(.2,1.4,.4,1) both; }
+.finish-rank { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6450; }
+.finish-red { --finish-colour: #d62828; }
+.finish-green { --finish-colour: #2a9d4b; }
+.finish-yellow { --finish-colour: #f4c20d; }
+.finish-blue { --finish-colour: #1f6feb; }
+.confetti-burst-piece { animation-duration: 1.8s; animation-iteration-count: 1; animation-fill-mode: both; }
+@keyframes bannerPop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
-  .token, .token-shine, .halo, .die-rolling, .turn-arrow, .base-active, .confetti-piece, .panel, .clock-paused { animation: none !important; transition: none !important; }
+  .finish-text, .token, .token-shine, .halo, .die-rolling, .turn-arrow, .base-active, .confetti-piece, .panel, .clock-paused { animation: none !important; transition: none !important; }
 }
 
 /* ---------- Phones ---------- */
@@ -298,6 +351,7 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 0.3em; border: 1px sol
   /* Compact panels: name and die side by side. */
   .panel { flex-direction: row; justify-content: space-between; padding: 0.3rem 0.5rem; align-self: stretch; transform: none !important; }
   .panel-name { font-size: 0.85rem; flex: 1; }
+  .panel-persona { display: none; }
   .panel-dice { padding-top: 0; padding-left: 18px; }
   .turn-arrow { top: 50%; left: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 12px solid #ffb400; border-right: 0; transform: translate(0, -50%); animation-name: nudge; }
   .die { width: 46px; height: 46px; padding: 5px; border-radius: 9px; gap: 2px; }

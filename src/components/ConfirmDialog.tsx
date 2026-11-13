@@ -5,12 +5,14 @@ interface ConfirmDialogProps {
   message: string
   confirmLabel: string
   cancelLabel: string
+  /** Style of the confirm button. Defaults to "danger" for destructive choices. */
+  confirmClass?: string
   onConfirm: () => void
   onCancel: () => void
 }
 
-/** Modal that asks before discarding a game in progress. Focus starts on "cancel" (the safe choice). */
-export function ConfirmDialog({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel }: ConfirmDialogProps) {
+/** Modal that asks the player to confirm a choice. Focus starts on "cancel" (the safe choice). */
+export function ConfirmDialog({ title, message, confirmLabel, cancelLabel, confirmClass = 'danger', onConfirm, onCancel }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function ConfirmDialog({ title, message, confirmLabel, cancelLabel, onCon
           <button type="button" ref={cancelRef} onClick={onCancel}>
             {cancelLabel}
           </button>
-          <button type="button" className="danger" onClick={onConfirm}>
+          <button type="button" className={confirmClass} onClick={onConfirm}>
             {confirmLabel}
           </button>
         </div>

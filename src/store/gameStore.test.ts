@@ -100,3 +100,24 @@ describe('game store: session', () => {
     expect(store().paused).toBe(false)
   })
 })
+
+describe('game store: rules for starting', () => {
+  it('will not start a game without a human seat', () => {
+    store().start([
+      { color: 'red', kind: 'bot' },
+      { color: 'yellow', kind: 'bot' },
+    ])
+    expect(store().game).toBeNull()
+  })
+})
+
+describe('game store: settings', () => {
+  it('turns auto roll and comeback dice on by default and saves changes', () => {
+    expect(store().settings.autoRoll).toBe(true)
+    expect(store().settings.comebackDice).toBe(true)
+    store().updateSettings({ autoRoll: false })
+    expect(store().settings).toEqual({ autoRoll: false, comebackDice: true })
+    expect(JSON.parse(window.localStorage.getItem('ludo:settings')!)).toEqual({ autoRoll: false, comebackDice: true })
+    store().updateSettings({ autoRoll: true })
+  })
+})

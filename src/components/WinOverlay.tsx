@@ -7,8 +7,15 @@ interface WinOverlayProps {
   names?: Partial<Record<Color, string>>
   /** Formatted game duration, shown under the heading. */
   time?: string
-  onNewGame: () => void
+  /** The game was ended before every place was decided. */
+  early?: boolean
+  /** Omitted for online guests, who cannot start a game. */
+  onNewGame?: () => void
   onSetup: () => void
+  /** Label for the setup button. Defaults to "Change setup". */
+  setupLabel?: string
+  /** Extra line under the standings. */
+  note?: string
 }
 
 const CONFETTI_COUNT = 90
@@ -33,7 +40,7 @@ function confettiPieces() {
 
 const PIECES = confettiPieces()
 
-export function WinOverlay({ winners, names = {}, time, onNewGame, onSetup }: WinOverlayProps) {
+export function WinOverlay({ winners, names = {}, time, early, onNewGame, onSetup, setupLabel = 'Change setup', note }: WinOverlayProps) {
   // The win fanfare is played by the game hook when the gameOver event fires.
   const champion = winners[0]
   const label = (c: Color) => names[c] ?? COLOR_NAME[c]
@@ -58,6 +65,7 @@ export function WinOverlay({ winners, names = {}, time, onNewGame, onSetup }: Wi
       <div className="overlay-card">
         <h2 id="win-title">{label(champion) === 'You' ? 'You win!' : `${label(champion)} wins!`}</h2>
         {time && <p className="win-time">Game time {time}</p>}
+        {early && <p className="win-time">Ended early. Unfinished players are ranked by how far their pieces got.</p>}
         <ol className="standings">
           {winners.map((c, i) => (
             <li key={c}>
@@ -68,12 +76,15 @@ export function WinOverlay({ winners, names = {}, time, onNewGame, onSetup }: Wi
             </li>
           ))}
         </ol>
+        {note && <p className="win-time" role="status">{note}</p>}
         <div className="overlay-actions">
-          <button type="button" className="primary" onClick={onNewGame}>
-            Play again
-          </button>
+          {onNewGame && (
+            <button type="button" className="primary" onClick={onNewGame}>
+              Play again
+            </button>
+          )}
           <button type="button" onClick={onSetup}>
-            Change setup
+            {setupLabel}
           </button>
         </div>
       </div>

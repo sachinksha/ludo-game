@@ -2,6 +2,7 @@
   "name": "ludo-game",
   "private": true,
   "version": "0.0.0",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "peerjs": "^1.5.5",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zustand": "^5.1.0"

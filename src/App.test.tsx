@@ -6,6 +6,8 @@ import { useGameStore } from './store/gameStore'
 beforeEach(() => {
   // The store is a module singleton, so clear any game left by a previous test.
   useGameStore.getState().abort()
+  // Setup prefills the previous game's seats; start each test from the defaults.
+  useGameStore.setState({ lastConfigs: null })
 })
 
 describe('App', () => {
@@ -22,6 +24,16 @@ describe('App', () => {
     // The human seat's dice are the roll button.
     expect(await screen.findByRole('button', { name: /tap to roll/i })).toBeEnabled()
     expect(screen.getByRole('img', { name: 'Ludo board' })).toBeInTheDocument()
+  })
+
+  it('starts a two-player game with a panel for each seat only', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByLabelText('2 players'))
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+    expect(await screen.findByRole('region', { name: /\(Red\)/ })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /\(Yellow\)/ })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /\(Green\)/ })).toBeNull()
+    expect(screen.queryByRole('region', { name: /\(Blue\)/ })).toBeNull()
   })
 
   it('returns to setup from settings when no moves have been made', async () => {

@@ -1,14 +1,35 @@
 # Ludo
 
-A browser Ludo game built with React, TypeScript, Vite and Zustand.
+A browser Ludo game built with React, TypeScript, Vite and Zustand. Play on one device against bots and friends, or online with an invite link.
 
-- **No login, no accounts, no scores.** Open it and play.
-- **2 or 4 players.** Each seat is a human or a bot, in any mix.
-- **Classic board.** Coloured bases, coloured start squares, an arrow where each home lane begins, stars on safe squares, and a home lane for each colour.
-- **Per-player dice.** Each seat shows its own last roll. On your turn, tap your dice to roll.
-- **Undo and redo**, plus **pause and resume**.
-- **Sound effects** synthesised in the browser (no audio files), with a sound on/off switch.
-- **Tested.** The rules engine, the store, the hook timing and the UI are covered, including simulated bot-only games.
+- **No login, no accounts, no scores.** Open it and play. Online games need only a name.
+- **2 or 4 players.** Each seat is a human, a bot or (online) a friend on another device, with at least one human. In a 2-player game you pick the two colours.
+- **Online play by invite link.** Browser to browser over WebRTC, with no game server to host or pay for. Links stop admitting new players after 5 minutes.
+- **Bots with personalities.** Each bot gets a random playing style every game (hunter, guardian, racer or balanced), so no two games play out the same.
+- **Auto roll** (on by default): your dice roll by themselves, and you step in only when there is a real choice of piece.
+- **Fair dice, with optional comeback help** for a player stuck in base for a long time.
+- **Celebrations** when any player gets all pieces home, not just at the end.
+- **Undo and redo**, **pause and resume**, and automatic pause when you switch away from a local game.
+- **Sound effects** synthesised in the browser (no audio files), with an on/off switch.
+- **Tested.** 160 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
+- **Free software** under the GNU GPL v3 (see [Licence](#licence)).
+- **A learning guide** in [`docs/`](docs/README.md) that uses this codebase to teach React, state management, TypeScript, game loops, system design and testing, aimed at senior and principal frontend interviews.
+
+## Contents
+
+- [Quick start](#quick-start)
+- [How to play](#how-to-play)
+- [Online play](#online-play)
+- [Rules](#rules)
+- [Choices we made](#choices-we-made) (read this if something surprises you)
+- [Dice](#dice)
+- [Bots](#bots)
+- [Architecture](#architecture)
+- [Testing](#testing)
+- [Deploying](#deploying)
+- [Known limitations](#known-limitations)
+- [Learning guide](#learning-guide)
+- [Licence](#licence)
 
 ## Quick start
 
@@ -28,107 +49,185 @@ npm run dev        # http://localhost:5173
 
 ## How to play
 
-1. On the setup screen, choose **2 players** (red and yellow, on opposite sides) or **4 players**.
-2. Click a seat to switch it between **Human** and **Bot**. The default is red as a human, with three bots.
-3. Optionally type a name for each human seat (up to 12 characters). Names must not be blank and must all be different.
-4. Press **Start game**.
-5. Your dice sit in your corner panel, and the **arrow** above them shows whose turn it is. **Tap the dice** (or press **Space**) to roll.
-6. When there is no real choice, your token moves automatically. That is when only one token can move, or when every token that can move sits on the same spot (for example all in the base on a six, or stacked on one square). Otherwise, choose a highlighted token on the board, or press its number. Your tokens are numbered 1 to 4 during your turn, and each keeps its number for the whole game.
+1. Choose **On this device** or **Online (invite link)**.
+2. Choose **2 players** or **4 players**. For 2 players, pick two colours. Opposite corners (red and yellow, or green and blue) are the classic layout, but any two work. Picking a third colour replaces the older pick.
+3. Click a seat to change who plays it: **Human** or **Bot**, plus **Online friend** in online play. At least one seat must be a human on this device.
+4. Optionally name each human seat (up to 12 characters, not blank, all different). Online friends choose their own names.
+5. Leave **Comeback dice** on or turn it off (see [Dice](#dice)), then press **Start game** (or **Create invite link**).
+6. Each seat has a corner panel with its own dice, and the **arrow** shows whose turn it is. With **Auto roll** on, your dice roll by themselves. With it off, **tap your dice** or press **Space**.
+7. When there is no real choice, your piece moves by itself: only one piece can move, or every piece that can move sits on the same spot. Otherwise, click a highlighted piece or press its number (pieces are numbered 1 to 4 during your turn).
+
+### Toolbar
+
+| Button | What it does |
+| --- | --- |
+| **Undo** / **Redo** | Step back over your last decision (a roll and its move), or forward again. Local games only |
+| **Pause** / **Resume** | Freeze the game. A local game also pauses itself when its tab goes to the background or the window loses focus. Online, only the host can pause, and it pauses for everyone |
+| **Auto roll** switch | Roll automatically on your turn (on by default). You still choose the piece when there is a choice |
+| **Sound** switch | Sound effects on or off |
+| **Settings** | Back to the setup screen. Asks before abandoning a game in progress. Online it reads **End online game** (host) or **Leave game** (guest) |
+| **New game** | Same seats, fresh game. Online, the host restarts for everyone in the session |
+
+The **clock** next to the title shows game time and stops while paused. The **game log** (collapsed by default) lists events newest first.
 
 ### Keyboard
 
 | Key | Action |
 | --- | --- |
 | `Space` | Roll the dice |
-| `1` to `4` | Move that token |
+| `1` to `4` | Move that piece |
 | `←` / `→` | Undo / redo |
 | `P` | Pause / resume |
 | `L` | Show / hide the game log |
 | `N` | New game |
 | `S` | Settings |
 
-### Toolbar
+On phones the toolbar shows icons only, panels shrink to one row, and keyboard help is hidden.
 
-| Button | What it does |
+## Online play
+
+### Hosting
+
+1. On setup, choose **Online (invite link)** and set one or more seats to **Online friend**.
+2. Press **Create invite link**. The lobby shows the link with **Copy** (and **Share** on phones), a countdown, and who has joined.
+3. Send the link. Each friend who opens it types a name and takes the next open online seat.
+4. Press **Start game**. Online seats nobody claimed become bots.
+5. **Keep your tab open.** The host's browser runs the game for everyone.
+6. **New game** restarts for everyone. **End online game** closes the session, and guests see "The host ended the game".
+
+If a friend's connection drops mid-game, a banner offers **Let a bot play** for that seat. They can also come back: opening the same link in the same browser tab returns them to their seat, even after the link has expired.
+
+### Joining
+
+Open the link, type a name, press **Join game**, and wait for the host to start. No account, email or phone number. Auto roll works for you too. Pause, undo and new game belong to the host.
+
+### How it works
+
+```
+  Guest browser                      Host browser (authority)                 Guest browser
+ ┌──────────────┐  intent: "roll"   ┌──────────────────────────┐   action     ┌──────────────┐
+ │ same engine, │ ───────────────▶  │ validates the intent,    │ ───────────▶ │ same engine, │
+ │ replays host │                   │ rolls the dice, records  │  broadcast   │ replays host │
+ │ actions      │ ◀───────────────  │ the action, broadcasts   │              │ actions      │
+ └──────────────┘   action (seq n)  └──────────────────────────┘              └──────────────┘
+          ▲                                     ▲
+          └──── WebRTC data channels (direct, encrypted with DTLS) ───┘
+                signalling only via the free PeerJS server
+```
+
+- **The host is the server.** Guests send only intents ("roll", "move piece 2"). The host checks it is that guest's turn and position, decides the outcome (including the dice, so guests cannot cheat them), and broadcasts the resulting action. Every browser runs the same deterministic engine, so applying the same actions gives the same game.
+- **The action log is the protocol.** The game was already stored as an initial state plus a list of actions (that is how undo works), so online play sends exactly those actions. A guest that misses one notices the gap in the sequence numbers and asks for a full copy.
+- **Free infrastructure, no backend.** [PeerJS](https://peerjs.com) introduces the two browsers through its free public signalling server, then the game runs over a direct, encrypted WebRTC data channel. Google's public STUN server helps browsers find each other, and PeerJS's free TURN relay carries traffic when a direct path is impossible. The site itself stays a static Vercel deploy.
+- **Privacy.** The invite (host id, one-time token, expiry) lives in the URL fragment after `#`, which browsers never send to web servers. Nothing is stored on any server. Names exist only in the players' browsers.
+- **Invite expiry.** Links admit new players for 5 minutes. The host enforces the expiry and the token, so editing the link does not help. **Reset link** issues a new token and invalidates the old link.
+- **Reconnecting.** On joining, a guest receives a private seat secret, kept in that tab's `sessionStorage`. It lets the same tab reclaim the seat after a refresh or a dropped connection.
+
+The full design, alternatives considered and trade-offs are in [docs/08-multiplayer-system-design.md](docs/08-multiplayer-system-design.md).
+
+## Rules
+
+- Each player has four pieces, which start in their base.
+- A piece leaves the base only on a **six**, onto its colour's start square (two squares past the arrow where its home lane begins).
+- Pieces move clockwise. Each colour walks **51 squares** around the loop, turns into its own five-square **home lane**, and finishes in the centre. A piece must land **exactly** on the centre.
+- Landing on an opponent on an **unsafe** square sends it back to base. Landing on a **stack** of opponents captures all of them.
+- Start squares and the four **star** squares are safe: pieces share them without capturing.
+- A **six**, a **capture**, or getting a piece **into the centre** earns an extra roll. The centre bonus does not apply to a player's last piece.
+- **Three sixes in a row** forfeit the turn.
+- If no piece can move, the turn passes.
+- When all four pieces reach the centre, that player finishes and is ranked, with a fanfare and a banner. The game ends when one player is left.
+- When every human has finished but two or more bots are still playing, the game offers to **end now**, ranking the remaining bots by how far their pieces have travelled.
+
+## Choices we made
+
+Ludo has many house rules and online versions differ. These are the choices this game makes, and why.
+
+| Area | Choice | Why |
+| --- | --- | --- |
+| Track | 51 loop squares, then a 5-square lane | The common modern board. Start squares sit two past the arrow, so a piece ends its loop on the arrow square |
+| Safe squares | Start squares and stars only | Matches most online versions. The arrow squares are not safe |
+| Stacks | No blocks. Landing on a stack captures all of it | Blocks add complexity many players find confusing. Capturing the whole stack keeps the rule "only safe squares hold mixed colours" true |
+| Extra rolls | Six, capture, and a piece reaching the centre (not your last) | Common online rules. No bonus after your last piece, because your game is over |
+| Three sixes | Forfeit the turn | Classic rule that limits runaway streaks |
+| Exact finish | Required | Classic rule. Overshooting moves are simply not legal |
+| Automatic moves | Played for you when every option gives the same result | Saves clicks without taking away a real decision |
+| Dice | Cryptographic randomness, each roll independent | Removes any doubt about the random source. See [Dice](#dice) |
+| Comeback dice | On by default, same help for humans and bots | Long dry spells are normal with fair dice and frustrating. Easy to turn off |
+| Bots | Random style each game, small random nudges | Varied, human-feeling opponents without being dumb. See [Bots](#bots) |
+| Ending early | Offered when every human is done; remaining bots ranked by total progress | Nobody wants to watch bots finish |
+| Undo | Rewinds to your last roll, removing any bot turns after it. Local only | Undo returns you to a decision, not a single click. Online, rewriting shared history would surprise the other players |
+| Auto pause | Local games only | Online, one player switching tabs would freeze everyone |
+| Online authority | Host browser decides everything, including dice | Prevents cheating without a server. The cost: the host must keep the tab open |
+| Invite links | 5 minutes, host-enforced, no accounts | Enough time to share a link, short enough that old links cannot be reused |
+
+## Dice
+
+Dice use the browser's cryptographic random generator (`crypto.getRandomValues`), and every roll is independent. Long droughts without a six are a normal part of fair dice. The chance of missing a six is 5/6 per roll, so 10 misses in a row happens about 16% of the time, and with four players someone hits a long dry spell most games.
+
+**Comeback dice** (setup option, on by default) softens this. After a player has been stuck in base (no piece on the board) for 3 rolls without a six, their chance of a six rises by 6 percentage points per further roll, from 1 in 6 up to at most 1 in 2. It resets as soon as they roll a six or have a piece out, and it applies to bots and humans alike. Turn it off for strictly fair dice.
+
+Settings (auto roll, comeback dice) are saved in the browser's `localStorage`.
+
+## Bots
+
+Each bot gets one of four styles at random when a game starts. Its weights then drift by up to ±15%, and every decision gets a small random nudge, so near-equal moves are not always resolved the same way. The style shows under the bot's name.
+
+| Style | Leans towards |
 | --- | --- |
-| **Undo** / **Redo** | Step back over your last decision (a roll and its move), or step forward again |
-| **Pause** / **Resume** | Freeze the game. Bots and your moves stop until you resume |
-| **Sound** switch | Turn sound effects on or off |
-| **Settings** | Open the setup screen to change seats. Asks before aborting a game in progress |
-| **New game** | Start again with the same seats. Asks before aborting a game in progress |
+| **Balanced** | A bit of everything |
+| **Hunter** | Captures (especially of far-travelled pieces) and sitting just behind opponents. Takes more risks |
+| **Guardian** | Avoiding squares opponents can reach, running from threats, safe squares and the home lane |
+| **Racer** | Pushing its lead pieces home as fast as possible |
 
-The **clock** next to the title shows the game time. It stops while the game is paused and when it ends.
-
-The **game log** on the right lists events with the latest at the top. It starts collapsed; open it from its header or with `L`.
-
-On phones the toolbar shows icons only, the player panels shrink to one row, and the keyboard help is hidden.
-
-### Rules
-
-- Each player has four tokens, which start in their base.
-- A token leaves the base only on a **six**, and it appears on its colour's coloured start square, two squares past the arrow where its home lane begins.
-- Tokens move clockwise around the loop. Each colour walks **51 squares**, then turns into its own five-square **home lane** and finishes in the centre. Its last loop square is the arrow square, from which it steps into the lane.
-- A token must land **exactly** on the centre to finish.
-- Landing on an opponent's token on an **unsafe** square sends it back to its base.
-- Start squares and the four **star** squares are safe. Tokens can share them without capturing.
-- Rolling a **six** earns an extra roll.
-- **Capturing** an opponent's token also earns an extra roll.
-- Getting a token **into the centre** earns an extra roll too, unless it was that player's last token.
-- Rolling **three sixes in a row** forfeits your turn.
-- If no token can move, the turn passes.
-- When all of a player's tokens reach the centre, that player finishes and is ranked. The game ends when one player is still playing.
+Every style scores each legal move on the same features: finishing a piece, captures, leaving the base, entering the home lane, progress, safe squares, how exposed the landing square is (opponents 1 to 6 squares behind it), escaping a threatened square, and opponents within reach next turn. All styles still take an obvious capture or finish. In simulated two-player games against the earlier fixed-priority bot, each style wins 55 to 60% of the time.
 
 ## Architecture
 
 ```
 src/
-├── game/                  Pure TypeScript. No React and no DOM.
+├── game/                  Pure TypeScript rules. No React, no DOM, no network.
 │   ├── types.ts           Domain types: Color, Token, Player, GameState, GameAction, GameEvent
 │   ├── board.ts           Loop length, start squares, safe squares
-│   ├── layout.ts          Grid coordinates for drawing (ring, lanes, bases, centre)
-│   ├── rules.ts           Movement rules: destinations, captures, legal moves, path steps
-│   ├── engine.ts          State machine: createGame, rollWithValue, applyAction, performMove
+│   ├── layout.ts          Grid coordinates for drawing
+│   ├── rules.ts           Destinations, captures, legal moves, path steps
+│   ├── engine.ts          State machine: createGame, rollWithValue, performMove, endGame, takeover
 │   ├── history.ts         Replay of the action list, and where undo rewinds to
-│   ├── bot.ts             Bot move scoring
-│   ├── describe.ts        Log text for each event
-│   └── *.test.ts          Engine, layout, bot and full-game simulation tests
+│   ├── bot.ts             Bot styles and move scoring
+│   ├── names.ts           Seat name validation
+│   └── describe.ts        Log text for each event
+├── net/                   Online play. No React.
+│   ├── protocol.ts        Message types and strict validation of guest input
+│   ├── transport.ts       The Network/Channel interfaces (the seam for tests)
+│   ├── peerNetwork.ts     WebRTC via PeerJS, loaded on demand
+│   ├── memoryNetwork.ts   In-memory network for tests
+│   ├── hostSession.ts     Seats, invites, expiry, reconnects, broadcasting (authority)
+│   ├── guestSession.ts    Connecting, intents, receiving actions
+│   └── invite.ts          Invite links and tokens
 ├── store/
-│   └── gameStore.ts       Zustand store: configs, action history, redo stack, pause
+│   ├── gameStore.ts       Zustand: configs, action history, redo stack, pause, settings
+│   └── onlineStore.ts     Zustand: role, live session, inbox; wires sessions to the game store
 ├── hooks/
-│   └── useLudoGame.ts     Timing: dice tumble, step-by-step moves, bot turns, forced moves
-├── components/
-│   ├── App-level screens: SetupScreen, GameScreen, WinOverlay, ConfirmDialog
-│   ├── Board.tsx          SVG board, arrows, stars, tokens and halos
-│   ├── PlayerPanel.tsx    One panel per seat: name, turn arrow and that seat's dice
-│   ├── Dice.tsx           Tumbling die, which is also the roll button
-│   ├── Icons.tsx          Inline SVG icons used with labels
-│   └── colors.ts          Shared colours
+│   ├── useLudoGame.ts     Timing and turn flow for local, host and guest
+│   ├── useOnline.ts       Session views via useSyncExternalStore
+│   ├── useGameClock.ts    The game clock
+│   └── useNow.ts          A ticking clock for countdowns
+├── components/            Screens and UI: Setup, HostLobby, JoinScreen, GameScreen, Board,
+│                          PlayerPanel, Dice, WinOverlay, ConfirmDialog, SeatList, Icons
 ├── audio/sfx.ts           Web Audio sound effects, with mute
-├── App.tsx                Chooses setup or game from the store
+├── App.tsx                Chooses setup, lobby, join or game from the stores
 └── main.tsx               Entry point
 ```
 
-### Design
+### Design principles
 
-- **Pure rules, impure shell.** Everything in `game/` takes a state and returns a new one. Nothing mutates its input, and nothing touches the DOM.
-- **The store is the history.** The game is never mutated in place. The store keeps the starting state and the list of actions taken. The current state, the log and the highlighted moves are all derived by replaying those actions. Undo removes actions from the end of the list and keeps them on a redo stack. Redo puts them back. A new action clears the redo stack.
-- **Replays are exact.** Each roll stores its die value, so replaying the history always reproduces the same game.
-- **Undo steps back over decisions, not clicks.** Undo removes the most recent human roll together with the move that followed. Bot turns that came after it are removed too. The human returns to the same point they were deciding from.
-- **Injected randomness.** Dice come from a `rng` function. Production uses `Math.random`. Tests pass a fixed function, and simulations use a seeded generator.
-- **Animation is separate from rules.** The engine applies a move at once. The hook replays it one square at a time, so the visible token walks the path while the true state is already settled.
-- **Timing lives in one place.** The hook schedules dice tumbles, move steps, bot thinking time and forced moves. Timers are cleared on pause, on undo and on unmount.
+- **Pure rules, impure shell.** Everything in `game/` takes a state and returns a new one. Nothing mutates its input or touches the DOM. React, timers, audio and networking live outside it.
+- **The history is the state.** The store keeps the starting state and the list of actions. The current state, the log and the highlighted moves are derived by replaying them. That one decision gives exact undo/redo, a game log, deterministic tests and, later, online play almost for free.
+- **Replays are exact.** Each roll stores its value, and bot styles are fixed at creation (a bot takeover carries its style in the action), so replaying always reproduces the same game.
+- **One action path.** Every action is decided, then announced (when hosting), then animated, then recorded. Bots, auto moves, humans and online guests all go through it.
+- **Animation is separate from rules.** The engine applies a move at once. The hook walks the piece square by square while the true state is already settled.
+- **Injected effects.** Randomness, the network and storage are passed in, so tests use fixed dice, seeded simulations and an in-memory network.
+- **Code splitting.** PeerJS loads only when someone goes online, so local players never download it.
 
-### Bots
-
-Each legal move gets a score, and the bot plays the highest. Ties go to the lowest token id.
-
-| Priority | Condition | Score |
-| --- | --- | --- |
-| 1 | Finishes a token | +100 |
-| 2 | Captures an opponent | +60 |
-| 3 | Brings a token out of the base | +40 |
-| 4 | Lands on a safe square | +15 |
-| 5 | Advances, weighted by distance (tie-breaker) | a few points |
+The [learning guide](docs/README.md) explains each of these in depth.
 
 ## Testing
 
@@ -136,38 +235,45 @@ Each legal move gets a score, and the bot plays the highest. Ties go to the lowe
 npm test
 ```
 
-The suite has 64 tests across:
+160 tests across:
 
-- **Engine:** dice mapping, creation, lane entry and exact finish, captures and safe squares, the six and capture bonuses, automatic moves, the three-sixes forfeit, passes and finishing.
-- **Layout:** 52 distinct loop squares, joined steps, and lanes that meet the loop.
-- **Bot:** finishing, captures and base exits are preferred.
-- **Full games:** bot-only games for two and four players, with invariants checked after every action.
-- **Store:** undo, redo, the redo stack, abort, the session counter, the log and pause.
-- **Hook:** a forced single move plays without a click, and a real choice does not.
-- **UI:** setup choices, the App flow, the log, the win overlay and the confirmation.
-- **Audio:** the mute state, and no crash without Web Audio.
+- **Engine:** dice mapping, comeback odds, creation and names, lane entry and exact finish, captures (including stacks) and safe squares, extra rolls, automatic moves, the three-sixes forfeit, passes, finishing, ending early and bot takeover.
+- **Bots:** every style still captures and finishes, guardians run from threats, racers push leaders, and close calls vary.
+- **Full games:** seeded bot-only games for two and four players, with invariants checked after every action.
+- **Network:** protocol validation, invite links, joining, expiry, wrong tokens, full games, leaving, reconnecting with a seat secret, ordered actions, pause, new games, takeover and ending, all over an in-memory network.
+- **Stores and hooks:** undo, redo, settings, forced moves, auto roll, celebrations, the end-early offer, auto pause, and the hook in host and guest roles.
+- **UI:** setup choices (including colours and online rules), the app flow, 2-player games, the log, the win overlay and the dialogs.
 
-## Deploying to Vercel
+The network tests use an in-memory transport. Real WebRTC between two browsers has to be tested by hand: open the invite on a second device, or in a second browser.
 
-This is a standard Vite app, so Vercel detects it.
+## Deploying
 
-1. Push the repository to GitHub.
-2. In Vercel, choose **Add New → Project** and import the repository.
-3. Keep the defaults: framework **Vite**, build command `npm run build`, output `dist`.
-4. Deploy. Each push to the main branch redeploys.
-
-No environment variables are needed.
+This is a static Vite app. On Vercel: import the repository, keep the defaults (framework **Vite**, build `npm run build`, output `dist`) and deploy. No environment variables, no backend. Online play uses the free public PeerJS servers.
 
 ## Browser support
 
-Any modern browser. Sound uses the Web Audio API, and the game plays silently where it is unavailable. The decorative animations switch off when the operating system requests reduced motion.
+Any modern browser. Online play needs WebRTC data channels, which every current browser supports. Sound uses the Web Audio API and is silent where unavailable. Animations switch off when the system asks for reduced motion.
 
 ## Known limitations
 
-- Bots use a greedy heuristic, not a search, so they are reasonable rather than strong opponents.
-- Pausing takes effect after the move or roll currently animating finishes.
-- Game state lives in memory. Refreshing the page starts over, since there are no accounts or saves.
+- **The host's tab is the server.** If the host closes it, the online game ends. Guests can reconnect only while the host is still there.
+- **Free public servers, no guarantees.** The PeerJS signalling and TURN servers are free community services with no uptime promise. If they are down, local play still works, but online games cannot start.
+- **Some networks block WebRTC.** Strict corporate or school firewalls may stop connections even with the relay.
+- **No spectators and no late joining.** Once a game starts, only players reclaiming their own seat can connect.
+- **Bots look one move ahead** rather than searching, so they are reasonable rather than strong.
+- **Pausing takes effect after the current animation.**
+- **Local games live in memory.** Refreshing the page starts over.
+
+## Learning guide
+
+[`docs/`](docs/README.md) is a study guide built on this codebase: architecture and folder structure, TypeScript, React, state management, the game loop and timing, the rules engine and AI, testing, multiplayer system design, accessibility and performance, and a set of interview questions answered with references to the code.
 
 ## Licence
 
-Add a licence before publishing.
+Copyright (C) 2026 Sachin Kiran Shah.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License** as published by the Free Software Foundation, either **version 3** of the License, or (at your option) any later version. See [LICENSE](LICENSE) for the full text.
+
+In short: anyone may use, study, copy, modify and share it, including commercially. If you distribute it or a modified version, you must share the source under the same licence.
+
+Third-party libraries keep their own licences (React, Zustand and PeerJS are MIT, all compatible with the GPL).

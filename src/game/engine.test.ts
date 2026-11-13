@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FINISH_PROGRESS, LANE_ENTRY_INDEX, START_INDEX, TRACK_LENGTH, isSafeSquare, toAbsoluteIndex } from './board'
-import { MAX_SIX_STREAK, applyAction, applyMove, autoMoveTokenIds, createGame, rollDice, rollDie, rollWithValue } from './engine'
+import { COMEBACK_GRACE, MAX_SIX_STREAK, applyAction, applyMove, autoMoveTokenIds, createGame, endGame, rollDice, rollDie, rollFor, rollWithValue, sixChance } from './engine'
 import { destinationFor, legalMovesFor, progressOf } from './rules'
 import type { GameState, PlayerConfig, TokenState } from './types'
 
@@ -307,5 +307,105 @@ describe('finishing and game over', () => {
       expect(face).toBeGreaterThanOrEqual(1)
       expect(face).toBeLessThanOrEqual(6)
     }
+  })
+})
+
+describe('stacked captures', () => {
+  it('sends every opponent token on the landing square back to base', () => {
+    let g = createGame(TWO)
+    const square = 30 // unsafe
+    g = setTokens(g, 1, [{ kind: 'track', pos: square }, { kind: 'track', pos: square }, yard, yard])
+    g = setTokens(g, 0, [{ kind: 'track', pos: square - 4 }, yard, yard, yard])
+    g = rollDice(g, die(4))
+    g = applyMove(g, 0)
+    expect(g.players[1].tokens.every((t) => t.state.kind === 'yard')).toBe(true)
+    expect(g.events.filter((e) => e.type === 'capture')).toHaveLength(2)
+  })
+})
+
+describe('comeback dice', () => {
+  const stuck = () => createGame(TWO).players[0]
+
+  it('counts rolls without a six while every token is in base, and resets on a six', () => {
+    let g = createGame(TWO)
+    g = rollWithValue(g, 3) // red, no move: turn passes
+    expect(g.players[0].dryRolls).toBe(1)
+    g = rollWithValue(g, 2) // yellow
+    g = rollWithValue(g, 4) // red again
+    expect(g.players[0].dryRolls).toBe(2)
+    g = rollWithValue(g, 1) // yellow
+    g = rollWithValue(g, 6) // red rolls a six
+    expect(g.players[0].dryRolls).toBe(0)
+  })
+
+  it('does not count rolls while the player has a token on the board', () => {
+    let g = createGame(TWO)
+    g = setTokens(g, 0, [{ kind: 'track', pos: START_INDEX.red }, yard, yard, yard])
+    g = rollWithValue(g, 3)
+    expect(g.players[0].dryRolls).toBe(0)
+  })
+
+  it('keeps fair odds during the grace period and when switched off', () => {
+    const p = { ...stuck(), dryRolls: COMEBACK_GRACE - 1 }
+    expect(sixChance(p, true)).toBeCloseTo(1 / 6)
+    expect(sixChance({ ...p, dryRolls: 20 }, false)).toBeCloseTo(1 / 6)
+  })
+
+  it('raises the odds of a six step by step after the grace period, up to a cap', () => {
+    const at = (n: number) => sixChance({ ...stuck(), dryRolls: n }, true)
+    expect(at(COMEBACK_GRACE)).toBeGreaterThan(1 / 6)
+    expect(at(COMEBACK_GRACE + 1)).toBeGreaterThan(at(COMEBACK_GRACE))
+    expect(at(100)).toBe(0.5)
+  })
+
+  it('gives no help once a token is on the board, however long the dry spell', () => {
+    const p = { ...stuck(), dryRolls: 10, tokens: stuck().tokens.map((t, i) => (i === 0 ? { ...t, state: { kind: 'track' as const, pos: 5 } } : t)) }
+    expect(sixChance(p, true)).toBeCloseTo(1 / 6)
+  })
+
+  it('rolls exactly like a fair die when no help applies', () => {
+    const g = createGame(TWO)
+    for (let face = 1; face <= 6; face++) expect(rollFor(g, die(face), true)).toBe(face)
+  })
+
+  it('still produces every face 1 to 5 when the odds are boosted', () => {
+    let g = createGame(TWO)
+    g = { ...g, players: g.players.map((p, i) => (i === 0 ? { ...p, dryRolls: 50 } : p)) }
+    const faces = new Set<number>()
+    for (let u = 0; u < 1; u += 0.01) faces.add(rollFor(g, () => u, true))
+    expect([...faces].sort()).toEqual([1, 2, 3, 4, 5, 6])
+    expect(rollFor(g, () => 0.49, true)).toBe(6)
+  })
+})
+
+describe('ending early', () => {
+  it('keeps finished places and ranks the rest by total progress', () => {
+    const FOUR: PlayerConfig[] = [
+      { color: 'red', kind: 'human' },
+      { color: 'green', kind: 'bot' },
+      { color: 'yellow', kind: 'bot' },
+      { color: 'blue', kind: 'bot' },
+    ]
+    let g = createGame(FOUR)
+    const home = { kind: 'home' as const }
+    g = setTokens(g, 0, [home, home, home, home])
+    g = { ...g, players: g.players.map((p, i) => (i === 0 ? { ...p, finishRank: 1 } : p)) }
+    g = setTokens(g, 1, [{ kind: 'track', pos: toAbsoluteIndex('green', 5) }, yard, yard, yard])
+    g = setTokens(g, 2, [{ kind: 'lane', step: 2 }, yard, yard, yard])
+    g = setTokens(g, 3, [yard, yard, yard, yard])
+
+    g = applyAction(g, { type: 'end', actor: 'human' })
+    expect(g.phase).toBe('gameOver')
+    expect(g.winners).toEqual(['red', 'yellow', 'green', 'blue'])
+    expect(g.events).toEqual([{ type: 'gameOver', winners: g.winners, early: true }])
+    expect(endGame(g)).toBe(g)
+  })
+})
+
+describe('bot styles', () => {
+  it('gives each bot a playing style and humans none', () => {
+    const g = createGame([{ color: 'red', kind: 'human' }, { color: 'yellow', kind: 'bot' }])
+    expect(g.players[0].bot).toBeNull()
+    expect(['balanced', 'hunter', 'guardian', 'racer']).toContain(g.players[1].bot?.persona)
   })
 })

@@ -41,13 +41,13 @@ function assertInvariants(g: GameState) {
 
 function playToEnd(configs: PlayerConfig[], seed: number, maxActions = 20000) {
   const rng = seeded(seed)
-  let g = createGame(configs)
+  let g = createGame(configs, rng)
   let actions = 0
   while (g.phase !== 'gameOver' && actions < maxActions) {
     if (g.phase === 'roll') {
       g = rollDice(g, rng)
     } else {
-      const choice = chooseBotMove(g)
+      const choice = chooseBotMove(g, rng)
       if (!choice) throw new Error('move phase with no legal move')
       g = applyMove(g, choice.tokenId)
     }
