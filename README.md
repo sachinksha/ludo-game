@@ -287,6 +287,8 @@ Any modern browser. Online play needs WebRTC data channels, which every current 
 
 [`docs/`](docs/README.md) is a study guide built on this codebase: architecture and folder structure, TypeScript, React, state management, the game loop and timing, the rules engine and AI, testing, multiplayer system design, accessibility and performance, and a set of interview questions answered with references to the code.
 
+[LEARNINGS.md](LEARNINGS.md) is a reusable playbook for building the next game from this one: what to copy, adapt or rewrite, the engine contract, the feature checklist players now expect, the online deployment recipe, and the pitfalls hit along the way.
+
 ## Licence
 
 Copyright (C) 2026 Sachin Kiran Shah.

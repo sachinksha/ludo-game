@@ -45,3 +45,7 @@ A game is a good teacher. It has rich state, strict rules, time-based UI, AI, an
 > The game is a starting state plus a list of actions. Everything else is derived.
 
 Undo, redo, the game log, deterministic tests, simulations and online multiplayer all fall out of that single decision ([chapter 4](04-state-management.md)). In interviews, being able to name the decision that made later features cheap is what separates principal-level answers from senior ones.
+
+## Building the next game
+
+[LEARNINGS.md](../LEARNINGS.md) turns this codebase into a playbook for your next game: a reuse map, the engine contract, a feature checklist, the online recipe and the mistakes to avoid.
