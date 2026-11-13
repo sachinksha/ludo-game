@@ -137,7 +137,7 @@ function turnOf(name: string): string {
 }
 
 export function GameScreen({ ludo }: GameScreenProps) {
-  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, autoRoll, celebration, notice, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, pickToken, undo, redo, togglePause } = ludo
+  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, autoRoll, celebration, notice, lastMove, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, pickToken, undo, redo, togglePause } = ludo
   const leaveOnline = useOnlineStore((s) => s.leave)
   const reconnect = useOnlineStore((s) => s.reconnect)
   const hostView = useHostView()
@@ -365,6 +365,7 @@ export function GameScreen({ ludo }: GameScreenProps) {
             clickable={clickable}
             onPick={pickToken}
             labelColor={humanTurn ? current.color : null}
+            lastMove={lastMove}
           />
           {celebration && <FinishBanner key={celebration.color} {...celebration} />}
           {paused && (

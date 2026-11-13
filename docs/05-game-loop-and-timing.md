@@ -69,6 +69,14 @@ Given the same initial state and actions, the game is identical. Randomness ente
 
 `settle` inspects the events of the last action. A `finish` event (a player done, game not over) shows a banner and holds play for `CELEBRATE_MS`. Sounds come from the same events ([`playOutcomeSounds`](../src/hooks/useLudoGame.ts)), synthesised with the Web Audio API in [sfx.ts](../src/audio/sfx.ts). Events are the bridge from pure rules to effects: the engine says *what happened*, and the shell decides *how it looks and sounds*.
 
+## Feedback that outlives the animation
+
+The step-by-step walk shows a move only while it happens; anyone who glanced away misses it. The **last-move trail** fixes that: after a move settles, the board draws a faint line in the mover's colour through the squares it passed ([Board.tsx](../src/components/Board.tsx) `LastMoveTrail`). Points worth noting:
+- **Derived from the event, not a new source of truth.** `settle` reads the `move` event the engine already emits and keeps `{ color, move }` in hook state. The path comes from `pathSteps`, the same function the animation uses, so trail and animation can never disagree.
+- **View state, not game state.** It is not in the action log, so undo/redo simply clear it, and online guests get it for free because their actions go through the same `settle`.
+- **Clear it at the right moment.** It disappears when the next move starts animating (a trail under a moving piece is confusing), not when the next player rolls, so a player who rolls still sees what happened before.
+- **Contrast on any background.** A thin dark casing under the coloured line keeps a red trail visible on red squares.
+
 ## Exercises
 
 1. Make pause freeze animations mid-move (record each timer's remaining time). Was it worth the complexity?

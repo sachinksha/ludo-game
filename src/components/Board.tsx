@@ -1,6 +1,7 @@
 import { LANE_ENTRY_INDEX, SAFE_INDICES, START_INDEX } from '../game/board'
-import { LANE, RING, YARD_ORIGIN, YARD_SLOTS, placeTokens, yardSlotCentre, type Cell } from '../game/layout'
-import type { Color, Player } from '../game/types'
+import { LANE, RING, YARD_ORIGIN, YARD_SLOTS, placeTokens, tokenCentre, yardSlotCentre, type Cell } from '../game/layout'
+import { pathSteps } from '../game/rules'
+import type { Color, Move, Player } from '../game/types'
 import { COLOR_HEX, COLOR_LIGHT, COLOR_NAME } from './colors'
 
 interface BoardProps {
@@ -12,6 +13,8 @@ interface BoardProps {
   onPick: (tokenId: number) => void
   /** Seat whose tokens show their number (1 to 4) as a keyboard hint, or null. */
   labelColor?: Color | null
+  /** The most recent move, drawn as a faint trail so everyone can follow what happened. */
+  lastMove?: { color: Color; move: Move } | null
 }
 
 const COLOURS: Color[] = ['red', 'green', 'yellow', 'blue']
@@ -52,7 +55,26 @@ function arrowPoints(cell: Cell): string {
   return [tip, b1, b2].map((p) => `${p[0].toFixed(3)},${p[1].toFixed(3)}`).join(' ')
 }
 
-export function Board({ players, activeColor, clickable, onPick, labelColor = null }: BoardProps) {
+/**
+ * A faint line along the squares the last move passed through, in the mover's
+ * colour, with a ring on the square it left. A dark casing under the line keeps
+ * it visible on the mover's own coloured lane.
+ */
+function LastMoveTrail({ color, move }: { color: Color; move: Move }) {
+  const at = (s: Move['from']) => tokenCentre(color, move.tokenId, s)
+  const points = [move.from, ...pathSteps(color, move.from, move.to)].map((s) => at(s).map((n) => n.toFixed(3)).join(',')).join(' ')
+  const [fx, fy] = at(move.from)
+  return (
+    <g className="last-move-trail" style={{ ['--arm' as string]: COLOR_HEX[color] }} aria-hidden="true">
+      <polyline className="last-move-casing" points={points} />
+      <polyline className="last-move" points={points} />
+      <circle className="last-move-casing" cx={fx} cy={fy} r={0.4} />
+      <circle className="last-move-from" cx={fx} cy={fy} r={0.4} />
+    </g>
+  )
+}
+
+export function Board({ players, activeColor, clickable, onPick, labelColor = null, lastMove = null }: BoardProps) {
   const clickableSet = new Set(clickable.map((c) => `${c.color}-${c.tokenId}`))
 
   return (
@@ -104,6 +126,8 @@ export function Board({ players, activeColor, clickable, onPick, labelColor = nu
       {HOME_TRIANGLES.map((t) => (
         <polygon key={`tri-${t.color}`} points={t.points} fill={COLOR_HEX[t.color]} stroke="#222" strokeWidth={0.03} />
       ))}
+
+      {lastMove && <LastMoveTrail {...lastMove} />}
 
       {/* Tokens. Tokens on the same square are spread out, and clickable tokens are drawn last so they are never hidden. */}
       {/* Later elements paint on top. Non-clickable tokens go first, so clickable ones end up on top. */}

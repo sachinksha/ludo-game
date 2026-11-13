@@ -56,6 +56,23 @@ describe('useLudoGame: forced moves', () => {
     expect(useGameStore.getState().actions).toHaveLength(2)
   })
 
+  it('remembers the last move for the board trail, and forgets it on undo', () => {
+    seedSingleTokenGame()
+    const { result } = renderHook(() => useLudoGame(THREE))
+    expect(result.current.lastMove).toBeNull()
+    act(() => result.current.roll())
+    act(() => vi.advanceTimersByTime(TIMING.ROLL_MS + 10))
+    // Step in small increments so each effect can schedule the next timer.
+    for (let t = 0; t < 2000 && !result.current.lastMove; t += 50) act(() => vi.advanceTimersByTime(50))
+    expect(result.current.lastMove).toMatchObject({
+      color: 'red',
+      move: { tokenId: 0, from: { kind: 'track', pos: START_INDEX.red }, to: { kind: 'track', pos: START_INDEX.red + 3 } },
+    })
+    act(() => vi.advanceTimersByTime(TIMING.SETTLE_MS + 10))
+    act(() => result.current.undo())
+    expect(result.current.lastMove).toBeNull()
+  })
+
   it('waits for a click on a forced move when auto move is off', () => {
     useGameStore.getState().updateSettings({ autoMove: false })
     try {

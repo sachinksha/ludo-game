@@ -328,6 +328,13 @@ legend { font-weight: 600; margin-bottom: 0.5rem; }
 /* Board squares follow the theme (slightly dimmed in dark mode); player colours do not. */
 .sq { fill: var(--board-square); }
 
+/* Trail of the most recent move. */
+.last-move-trail { pointer-events: none; opacity: 0.8; }
+.last-move-casing { fill: none; stroke: rgba(0, 0, 0, 0.35); stroke-width: 0.2; stroke-linecap: round; stroke-linejoin: round; }
+.last-move { fill: none; stroke: var(--arm); stroke-width: 0.11; stroke-linecap: round; stroke-linejoin: round; }
+.last-move-from { fill: none; stroke: var(--arm); stroke-width: 0.08; }
+circle.last-move-casing { stroke-width: 0.16; }
+
 /* Board highlights. The base of the player to move pulses. */
 .base-active { animation: basePulse 1.1s ease-in-out infinite; }
 @keyframes basePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }

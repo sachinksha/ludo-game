@@ -4,7 +4,7 @@ import { chooseBotMove, createBotProfile } from '../game/bot'
 import { autoMoveTokenIds, rollFor, secureRandom, type Rng } from '../game/engine'
 import { undoIndex } from '../game/history'
 import { pathSteps } from '../game/rules'
-import type { Color, GameAction, GameEvent, GameState, Player, TokenState } from '../game/types'
+import type { Color, GameAction, GameEvent, GameState, Move, Player, TokenState } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { useOnlineStore, type Role } from '../store/onlineStore'
 import { useGuestView } from './useOnline'
@@ -97,6 +97,8 @@ export interface LudoController {
   celebration: Celebration | null
   /** A short message for everyone at the table, such as a bot taking over a seat. */
   notice: Notice | null
+  /** The most recent move, drawn on the board as a faint trail. */
+  lastMove: { color: Color; move: Move } | null
   /** Every human has finished but bots are still playing: offer to end the game. */
   offerEnd: boolean
   /** Ends the game now, ranking the remaining bots by progress. */
@@ -145,6 +147,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
   const [busy, setBusy] = useState(false)
   const [celebration, setCelebration] = useState<Celebration | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
+  const [lastMove, setLastMove] = useState<{ color: Color; move: Move } | null>(null)
   const noticeId = useRef(0)
   const [endDeclined, setEndDeclined] = useState(false)
 
@@ -190,6 +193,8 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     const next = useGameStore.getState().game!
     setShownPlayers(next.players)
     playOutcomeSounds(next.events)
+    const moved = next.events.find((e) => e.type === 'move')
+    if (moved?.type === 'move') setLastMove({ color: moved.color, move: moved.move })
     const handover = next.events.find((e) => e.type === 'takeover')
     if (handover && handover.type === 'takeover') {
       const id = ++noticeId.current
@@ -239,6 +244,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
           return false
         }
         const mover = g.players[g.currentIndex]
+        setLastMove(null) // the old trail would be confusing under a moving piece
         const steps = pathSteps(mover.color, move.from, move.to)
         steps.forEach((state, i) => {
           later(() => {
@@ -413,6 +419,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     useGameStore.getState().undo()
     setShownPlayers(useGameStore.getState().game!.players)
     setRolling(false)
+    setLastMove(null)
   }, [role])
 
   const redo = useCallback(() => {
@@ -420,6 +427,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     useGameStore.getState().redo()
     setShownPlayers(useGameStore.getState().game!.players)
     setRolling(false)
+    setLastMove(null)
   }, [role])
 
   // Local games pause when the player looks away: the tab goes to the
@@ -462,6 +470,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     autoMove,
     celebration,
     notice,
+    lastMove,
     offerEnd,
     endEarly,
     keepWatching,

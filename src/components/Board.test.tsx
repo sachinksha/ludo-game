@@ -77,3 +77,24 @@ describe('stacked tokens', () => {
     expect(onPick).not.toHaveBeenCalled()
   })
 })
+
+describe('last move trail', () => {
+  const players = createGame([{ color: 'red', kind: 'human' }, { color: 'yellow', kind: 'bot' }]).players
+  const move = { tokenId: 0, from: { kind: 'track' as const, pos: 2 }, to: { kind: 'track' as const, pos: 5 }, captured: null, finishes: false }
+
+  it('draws a line through every square passed, starting where the piece left', () => {
+    render(<Board players={players} activeColor="red" clickable={[]} onPick={vi.fn()} lastMove={{ color: 'red', move }} />)
+    const line = document.querySelector('polyline.last-move')!
+    const points = line.getAttribute('points')!.split(' ')
+    expect(points).toHaveLength(4) // the start square plus three steps
+    const [sx, sy] = tokenCentre('red', 0, move.from)
+    expect(points[0]).toBe(`${sx.toFixed(3)},${sy.toFixed(3)}`)
+    const ring = document.querySelector('circle.last-move-from')!
+    expect(ring.getAttribute('cx')).toBe(String(sx))
+  })
+
+  it('draws nothing without a last move', () => {
+    render(<Board players={players} activeColor="red" clickable={[]} onPick={vi.fn()} />)
+    expect(document.querySelector('.last-move-trail')).toBeNull()
+  })
+})

@@ -184,6 +184,7 @@ Players of this game now expect these. Tick them off in the next game, adapting 
 - [ ] **Auto move** switch, on by default, persisted: play forced moves (only one option, or all options equivalent) automatically. Online, each device automates only its own seat by sending intents; the host never auto-plays a remote human's move.
 - [ ] **Bot personalities** (here balanced/hunter/guardian/racer) assigned randomly per game, ±15% weight jitter, small noise on close calls, and always take obvious wins/captures. The persona label is shown on the bot's panel.
 - [ ] **Comeback assist** for long droughts: fair dice first, small disclosed boost after a grace period, capped, applies to everyone, switchable.
+- [ ] **Last-move trail**: faint polyline in the mover's colour along the path just taken, ring on the starting square, dark casing so it shows on same-coloured squares. Set on settle from the `move` event; cleared when the next move starts animating and on undo/redo. View-only state in the hook, not game state.
 - [ ] **Whose turn** is obvious: arrow, highlighted panel, live prompt line.
 - [ ] **Undo/redo** (local only): undo returns to the human's last decision, removing bot turns after it.
 - [ ] **Game log**, collapsible, derived from events.
