@@ -66,8 +66,6 @@ export function GameScreen({ ludo }: GameScreenProps) {
   const clickable = canPick ? pickable.map((tokenId) => ({ color: current.color, tokenId })) : []
   /** Still rolling with sixes banked (roll sixes first). */
   const banking = game.phase === 'roll' && pool.length > 0
-  /** "Dice 6, 3: using the 6." with several dice, otherwise nothing extra. */
-  const diceText = pool.length > 1 && selectedDie !== null ? `Dice ${pool.join(', ')}: using the ${selectedDie}. ` : ''
 
   // Online, leaving ends the session (host) or leaves it (guest). Locally, back to setup.
   const doSetup = () => (online ? leaveOnline() : abort())
@@ -171,8 +169,10 @@ export function GameScreen({ ludo }: GameScreenProps) {
   else if (banking) prompt = `${turnOf(current.name)} Banked ${pool.join(', ')}: roll again before moving${autoRoll ? '...' : '.'}`
   else if (game.phase === 'roll' && autoRoll) prompt = `${turnOf(current.name)} Rolling...`
   else if (game.phase === 'roll') prompt = `${turnOf(current.name)} ${IS_TOUCH ? 'Tap your dice to roll.' : 'Press Space or tap your dice to roll.'}`
-  else if (IS_TOUCH) prompt = `${diceText}Tap a highlighted piece to move it.${usableDice.length > 1 ? ' Tap a die to switch.' : ''}`
-  else prompt = `${diceText}Choose a highlighted piece: press its number or click it.${usableDice.length > 1 ? ' D switches die.' : ''}`
+  // On touch screens the dice row already shows the dice; a short prompt keeps the bar one height.
+  else if (IS_TOUCH) prompt = usableDice.length > 1 ? 'Tap a piece, or a die to switch.' : 'Tap a highlighted piece to move it.'
+  else if (pool.length > 1) prompt = `Using the ${selectedDie}: pick a highlighted piece (1–4).`
+  else prompt = 'Choose a highlighted piece: press its number or click it.'
 
   // Only seated colours get a panel: a two-player game has no green or blue seat.
   const panel = (color: Color) => {

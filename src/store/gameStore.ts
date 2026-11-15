@@ -61,7 +61,7 @@ export type ToggleSetting = { [K in keyof Settings]: Settings[K] extends boolean
 
 export const SETTINGS_KEY = 'ludo:settings'
 export const DEFAULT_SETTINGS: Settings = {
-  autoRoll: true,
+  autoRoll: false,
   autoMove: true,
   undo: false,
   comebackDice: true,

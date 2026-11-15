@@ -574,9 +574,12 @@ button.danger-outline { border-color: var(--danger); color: var(--danger); font-
 
 
 /* ---------- Turn bar: prompt and banked dice ---------- */
-.turn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; margin: 0.2rem 0 0.8rem; min-height: 1.6em; }
-.turn-bar .prompt { margin: 0; flex: 1 1 18rem; }
-.dice-pool { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+/* The bar is always as tall as a row of dice buttons (44px + borders), and the
+   dice sit beside the prompt rather than wrapping under it, so banked dice
+   appearing or disappearing never moves the board. */
+.turn-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.3rem 0.8rem; margin: 0.2rem 0 0.8rem; min-height: 52px; }
+.turn-bar .prompt { margin: 0; min-height: 0; }
+.dice-pool { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.35rem; }
 .dice-pool-label { font-size: 0.85rem; color: var(--ink-soft); }
 .dice-chip { display: inline-grid; place-items: center; padding: 3px; border-radius: 10px; border: 2px solid var(--line); background: var(--surface); }
 button.dice-chip { min-width: 44px; min-height: 44px; }
@@ -601,6 +604,11 @@ button.dice-chip { min-width: 44px; min-height: 44px; }
   .toolbar-actions { gap: 0.3rem; width: 100%; justify-content: space-between; }
   .tool { padding: 0.5rem 0.6rem; min-height: 40px; }
   .prompt { margin: 0.1rem 0 0.5rem; font-size: 0.92rem; }
+  .turn-bar { margin: 0.1rem 0 0.5rem; gap: 0.3rem 0.5rem; }
+  .dice-pool { gap: 0.25rem; }
+  /* The keyboard hint costs width the prompt needs on narrow screens. */
+  .dice-pool kbd { display: none; }
+  .dice-pool .dice-pool-label:last-child { display: none; }
   /* Compact panels: name and die side by side. */
   .panel { flex-direction: row; justify-content: space-between; padding: 0.3rem 0.5rem; align-self: stretch; transform: none !important; }
   .panel-name { font-size: 0.85rem; flex: 1; }

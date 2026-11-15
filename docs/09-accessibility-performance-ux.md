@@ -42,7 +42,7 @@
 
 ## UX decisions worth discussing
 
-- **Auto roll on by default, but never auto-choose a real decision.** Remove friction without removing agency.
+- **Auto roll off by default, auto move on, and never auto-choose a real decision.** Rolling is part of the fun, so it stays with the player unless they opt in; forced moves are pure friction, so they play themselves.
 - **Automatic moves** only when every option is equivalent, behind an **Auto move** switch (on by default) for players who prefer to click every move.
 - **Comeback dice:** a fairness feeling fix, disclosed in the UI and README, and switchable.
 - **Celebrate each finish,** not only the winner: players who finish second still get a moment.

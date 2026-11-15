@@ -149,7 +149,7 @@ describe('game store: settings', () => {
   it('has the documented defaults', () => {
     store().updateSettings({ ...DEFAULT_SETTINGS })
     expect(store().settings).toEqual({
-      autoRoll: true,
+      autoRoll: false,
       autoMove: true,
       undo: false,
       comebackDice: true,

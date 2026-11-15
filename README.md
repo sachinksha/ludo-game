@@ -12,7 +12,7 @@ A browser Ludo game built with React, TypeScript, Vite and Zustand. Play on one 
 - **Game menu** for **Restart** (same players and rules) and **Set up a new game**, each asking before it discards a game. A **Rules** sheet explains the game in plain words.
 - **Refresh keeps your game.** A local game is saved in the browser and comes back paused.
 - **Light and dark themes.** Follows your device by default; pick **System**, **Light** or **Dark** in Settings.
-- **Auto roll** and **Auto move** (both on by default): your dice roll by themselves, forced moves play themselves, and you step in only when there is a real choice of piece. Turn either off to do it yourself.
+- **Auto move** (on by default) plays forced moves for you, and **Auto roll** (off by default) rolls your dice by itself. You always step in when there is a real choice of piece.
 - **Fair dice, with optional comeback help** for a player stuck in base for a long time.
 - **Celebrations** when any player gets all pieces home, not just at the end.
 - **Pause and resume**, automatic pause when you switch away from a local game, and optional **undo and redo** (off by default, one step at a time).
@@ -80,7 +80,7 @@ The **clock** next to the title shows game time and stops while paused. The **ga
 
 ### Settings
 
-- **Playing:** Auto roll and Auto move (both on by default), Undo and redo (off by default).
+- **Playing:** Auto roll (off by default), Auto move (on by default), Undo and redo (off by default).
 - **Sound:** on or off, volume, and a **sound style**: Tabla (the default), Classic, Bansuri (flute), Sitar or Santoor. Each style has a play button for a sample, and "Try each sound" plays every game sound in the chosen style.
 - **Look:** System, Light or Dark theme.
 - **Reset all settings to defaults** puts everything back, including the house rules for new games.

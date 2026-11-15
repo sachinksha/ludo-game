@@ -189,7 +189,7 @@ Players of this game now expect these. Tick them off in the next game, adapting 
 - [ ] **Rules** and **Settings** buttons on the setup and join screens too.
 
 ### During play
-- [ ] **Auto roll** switch, on by default, persisted. Never auto-choose a real decision.
+- [ ] **Auto roll** switch, off by default (rolling is part of the fun), persisted. Never auto-choose a real decision.
 - [ ] **Auto move** switch, on by default, persisted: play forced moves (only one option, or all options equivalent) automatically. Online, each device automates only its own seat by sending intents; the host never auto-plays a remote human's move.
 - [ ] **Bot personalities** (here balanced/hunter/guardian/racer) assigned randomly per game, ±15% weight jitter, small noise on close calls, and always take obvious wins/captures. The persona label is shown on the bot's panel.
 - [ ] **Comeback assist** for long droughts: fair dice first, small disclosed boost after a grace period, capped, applies to everyone, switchable.
@@ -316,7 +316,7 @@ Rules learned the hard way:
 
 | Decision | Default | Why |
 | --- | --- | --- |
-| Auto roll | On | Removes friction; real choices still wait for the player |
+| Auto roll | Off | Rolling the dice yourself is part of the fun; one switch turns it on for those who want speed |
 | Theme | System | Respect the device; let players override |
 | Auto move | On | Same, for forced moves; some players want to click every move |
 | Roll all your sixes first | On (house rule) | How the game was played growing up; adds planning. Three sixes still forfeit |
