@@ -4,7 +4,7 @@ import { displayNames } from '../game/engine'
 import { validateNames } from '../game/names'
 import { HOUSE_RULE_KEYS, MAX_NAME_LENGTH, type Color, type PlayerConfig } from '../game/types'
 import { useGameStore } from '../store/gameStore'
-import { COLOR_NAME } from './colors'
+import { COLOR_HEX, COLOR_NAME } from './colors'
 import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { RulesButton } from './RulesSheet'
 import { SettingsButton } from './SettingsSheet'
@@ -17,13 +17,11 @@ type SeatKind = 'human' | 'bot' | 'friend'
 
 type PlayMode = 'local' | 'online'
 
-const SEAT_LABEL: Record<SeatKind, string> = { human: 'Human', bot: 'Bot', friend: 'Online friend' }
+/** Short labels for the seat menu, which is narrow on a phone. The hint below the seats explains them. */
+const OPTION_LABEL: Record<SeatKind, string> = { human: 'Human', bot: 'Bot', friend: 'Online' }
 
-/** Next kind when a seat is clicked. Online play adds "friend" to the cycle. */
-function nextKind(kind: SeatKind, play: PlayMode): SeatKind {
-  if (play === 'local') return kind === 'human' ? 'bot' : 'human'
-  return kind === 'human' ? 'bot' : kind === 'bot' ? 'friend' : 'human'
-}
+/** Who can sit in a seat. "Online friend" only exists when playing online. */
+const SEAT_KINDS: Record<PlayMode, readonly SeatKind[]> = { local: ['human', 'bot'], online: ['human', 'bot', 'friend'] }
 
 const DEFAULT_KINDS: Record<Color, SeatKind> = { red: 'human', green: 'bot', yellow: 'bot', blue: 'bot' }
 
@@ -159,17 +157,24 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
           const error = errors[color]
           const inputId = `name-${color}`
           return (
-            <div key={color} className="seat-card">
-              <button
-                type="button"
-                className={`seat seat-${color}`}
-                onClick={() => setKinds((prev) => ({ ...prev, [color]: nextKind(kindOf(color), play) }))}
-                aria-label={`${COLOR_NAME[color]} seat: ${SEAT_LABEL[kind]}. Click to change`}
-              >
-                <span className="seat-colour" aria-hidden="true" />
+            <div key={color} className="seat-card" style={{ ['--arm' as string]: COLOR_HEX[color] }}>
+              <div className="seat-kind">
+                <span className="seat-dot" aria-hidden="true" />
                 <span>{COLOR_NAME[color]}</span>
-                <strong>{SEAT_LABEL[kind]}</strong>
-              </button>
+                {/* A labelled dropdown says plainly what can change and to what. */}
+                <select
+                  className="seat-kind-select"
+                  aria-label={`${COLOR_NAME[color]} seat`}
+                  value={kind}
+                  onChange={(e) => setKinds((prev) => ({ ...prev, [color]: e.target.value as SeatKind }))}
+                >
+                  {SEAT_KINDS[play].map((k) => (
+                    <option key={k} value={k}>
+                      {OPTION_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {kind === 'human' ? (
                 <>
                   <label className="sr-only" htmlFor={inputId}>
@@ -201,8 +206,9 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
         })}
       </fieldset>
       <p className="setup-hint">
+        Use each seat's menu to choose who plays it: <b>Human</b> (on this device) or <b>Bot</b>
+        {play === 'online' ? <>, or <b>Online</b>: a friend who joins with your invite link and picks their own name</> : ' (choose Online above to invite friends)'}.
         Names can be up to {MAX_NAME_LENGTH} characters.
-        {play === 'online' && ' Online friends choose their own name when they join.'}
       </p>
       {problem && (
         <p className="seat-error setup-need-human" role="alert">

@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SetupScreen } from './SetupScreen'
 
+/** Chooses who plays a seat from its dropdown. */
+const setSeat = (color: string, kind: 'human' | 'bot' | 'friend') =>
+  fireEvent.change(screen.getByRole('combobox', { name: `${color} seat` }), { target: { value: kind } })
+
 describe('SetupScreen', () => {
   it('offers a four-seat game by default with one human seat', () => {
     const onStart = vi.fn()
@@ -18,11 +22,12 @@ describe('SetupScreen', () => {
     )
   })
 
-  it('switches to two players and lets a seat be toggled to bot or human', () => {
+  it('switches to two players and lets a seat be set to human from its menu', () => {
     const onStart = vi.fn()
     render(<SetupScreen onStart={onStart} />)
     fireEvent.click(screen.getByLabelText('2 players'))
-    fireEvent.click(screen.getByRole('button', { name: /Yellow seat: Bot/ }))
+    expect(screen.getByRole('combobox', { name: 'Yellow seat' })).toHaveValue('bot')
+    setSeat('Yellow', 'human')
     fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
     expect(onStart).toHaveBeenCalledWith(
       [
@@ -37,7 +42,7 @@ describe('SetupScreen', () => {
     const onStart = vi.fn()
     render(<SetupScreen onStart={onStart} />)
     fireEvent.click(screen.getByLabelText('2 players'))
-    fireEvent.click(screen.getByRole('button', { name: /Red seat: Human/ }))
+    setSeat('Red', 'bot')
     expect(screen.getByRole('alert')).toHaveTextContent('At least one seat must be a human player.')
     const startButton = screen.getByRole('button', { name: 'Start game' })
     expect(startButton).toBeDisabled()
@@ -92,7 +97,7 @@ describe('SetupScreen', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Blue', pressed: false })) // replaces red
     expect(screen.getByRole('button', { name: 'Red', pressed: false })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Yellow seat: Bot/ }))
+    setSeat('Yellow', 'human')
     fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
     // Seats come in turn order (clockwise from red), not pick order.
     expect(onStart).toHaveBeenCalledWith(
@@ -111,8 +116,7 @@ describe('SetupScreen', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Set at least one seat to Online friend.')
     expect(screen.getByRole('button', { name: 'Create invite link' })).toBeDisabled()
 
-    // Bot -> Online friend.
-    fireEvent.click(screen.getByRole('button', { name: /Green seat: Bot/ }))
+    setSeat('Green', 'friend')
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
     expect(onStart).toHaveBeenCalledWith(
       [
@@ -128,8 +132,24 @@ describe('SetupScreen', () => {
   it('needs a human seat on this device to host', () => {
     render(<SetupScreen onStart={vi.fn()} />)
     fireEvent.click(screen.getByLabelText('Online (invite link)'))
-    fireEvent.click(screen.getByRole('button', { name: /Red seat: Human/ })) // -> Bot
-    fireEvent.click(screen.getByRole('button', { name: /Red seat: Bot/ })) // -> Online friend
+    setSeat('Red', 'friend')
     expect(screen.getByRole('alert')).toHaveTextContent('You need a Human seat on this device to host.')
+  })
+
+  it('offers Human and Bot in each seat menu, plus Online when playing online', () => {
+    render(<SetupScreen onStart={vi.fn()} />)
+    const options = () => [...screen.getByRole('combobox', { name: 'Green seat' }).querySelectorAll('option')].map((o) => o.textContent)
+    expect(options()).toEqual(['Human', 'Bot'])
+    fireEvent.click(screen.getByLabelText('Online (invite link)'))
+    expect(options()).toEqual(['Human', 'Bot', 'Online'])
+  })
+
+  it('shows a name box for humans, the bot name for bots, and "Joins by link" for online friends', () => {
+    render(<SetupScreen onStart={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText('Online (invite link)'))
+    expect(screen.getByLabelText('Red player name')).toBeInTheDocument()
+    expect(screen.getByText('Bot 1')).toBeInTheDocument()
+    setSeat('Green', 'friend')
+    expect(screen.getByText('Joins by link')).toBeInTheDocument()
   })
 })

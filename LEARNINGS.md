@@ -179,7 +179,7 @@ decide (human click / bot choice / auto rule / guest intent at host)
 Players of this game now expect these. Tick them off in the next game, adapting the wording.
 
 ### Setup
-- [ ] Seats can be **Human**, **Bot** or **Online friend**; 2 or 4 seats (or whatever the game supports).
+- [ ] Seats can be **Human**, **Bot** or **Online friend**; 2 or 4 seats (or whatever the game supports). Each seat is a card in its colour with a **labelled dropdown** (Human / Bot / Online), not a button that cycles: a menu says plainly what can change and to what, and only offers Online when playing online.
 - [ ] **At least one human** required. Message: "At least one seat must be a human player."
 - [ ] Hosting needs a human seat on this device, and at least one Online friend seat.
 - [ ] **Names** validated (not blank, unique, case-insensitive), max 12 characters, sanitised for online.

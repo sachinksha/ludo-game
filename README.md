@@ -57,7 +57,7 @@ npm run dev        # http://localhost:5173
 
 1. Choose **On this device** or **Online (invite link)**.
 2. Choose **2 players** or **4 players**. For 2 players, pick two colours. Opposite corners (red and yellow, or green and blue) are the classic layout, but any two work. Picking a third colour replaces the older pick.
-3. Click a seat to change who plays it: **Human** or **Bot**, plus **Online friend** in online play. At least one seat must be a human on this device.
+3. Each seat is a card in its colour with a menu for who plays it: **Human** (on this device) or **Bot**, plus **Online** (a friend who joins by link) in online play. At least one seat must be a human on this device.
 4. Optionally name each human seat (up to 12 characters, not blank, all different). Online friends choose their own names.
 5. Choose the **house rules**: **Comeback dice** (see [Dice](#dice)) and **Roll all your sixes first** (see [House rules](#house-rules)). Both are on by default. Then press **Start game** (or **Create invite link**).
 6. Each seat has a corner panel with its own dice, and the **arrow** shows whose turn it is. With **Auto roll** on, your dice roll by themselves. With it off, **tap your dice** or press **Space**.
