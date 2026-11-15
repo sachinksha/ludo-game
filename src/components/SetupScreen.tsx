@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { COLOR_ORDER } from '../game/board'
 import { displayNames } from '../game/engine'
 import { validateNames } from '../game/names'
-import { MAX_NAME_LENGTH, type Color, type PlayerConfig } from '../game/types'
+import { HOUSE_RULE_KEYS, MAX_NAME_LENGTH, type Color, type PlayerConfig } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { COLOR_NAME } from './colors'
+import { HOUSE_RULE_TEXT } from './houseRuleText'
+import { RulesButton } from './RulesSheet'
+import { SettingsButton } from './SettingsSheet'
 
 /**
  * What sits in a seat, as chosen on this screen. "friend" is a human playing
@@ -57,6 +60,7 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
     return next
   })
   const comebackDice = useGameStore((s) => s.settings.comebackDice)
+  const houseRules = useGameStore((s) => s.settings.houseRules)
   const updateSettings = useGameStore((s) => s.updateSettings)
 
   // Seats in turn order (clockwise from red). In local play a friend seat is just a human.
@@ -101,6 +105,10 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
 
   return (
     <section className="setup" aria-labelledby="setup-title">
+      <div className="setup-tools">
+        <RulesButton />
+        <SettingsButton />
+      </div>
       <h1 id="setup-title">Ludo</h1>
       <p className="tagline">Free to play. No login, no scores. Just roll.</p>
 
@@ -202,15 +210,32 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
         </p>
       )}
 
-      <label className="setup-option">
-        <input type="checkbox" checked={comebackDice} onChange={(e) => updateSettings({ comebackDice: e.target.checked })} />
-        <span>
-          <strong>Comeback dice</strong>
-          <span className="setup-option-hint">
-            A player stuck in base for more than 3 rolls gets a growing chance of a six. Applies to bots too.
+      <fieldset className="house-rules">
+        <legend>House rules</legend>
+        <p className="setup-hint">Optional rules, fixed for the whole game. Everyone (bots too) plays by them.</p>
+        <label className="setup-option">
+          <input type="checkbox" checked={comebackDice} onChange={(e) => updateSettings({ comebackDice: e.target.checked })} />
+          <span>
+            <strong>Comeback dice</strong>
+            <span className="setup-option-hint">
+              A player stuck in base for more than 3 rolls gets a growing chance of a six.
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
+        {HOUSE_RULE_KEYS.map((key) => (
+          <label key={key} className="setup-option">
+            <input
+              type="checkbox"
+              checked={houseRules[key]}
+              onChange={(e) => updateSettings({ houseRules: { ...houseRules, [key]: e.target.checked } })}
+            />
+            <span>
+              <strong>{HOUSE_RULE_TEXT[key].title}</strong>
+              <span className="setup-option-hint">{HOUSE_RULE_TEXT[key].hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
 
       {error && (
         <p className="seat-error setup-need-human" role="alert">

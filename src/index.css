@@ -28,6 +28,16 @@
   --scrim: rgba(20, 18, 12, 0.55);
   --board-square: #fff;
   --board-frame: #2b2620;
+  /* Names used by the sheet, settings and menu styles (shared with Star Hop). */
+  --line: var(--border-soft);
+  --ink-soft: var(--text-muted);
+  --surface-2: #f4eee1;
+  --accent: #1f6feb;
+  --accent-ink: #fff;
+  --focus: #1f6feb;
+  --danger: var(--danger-text);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  --star: #f4c20d;
 }
 
 /* Dark theme: follows the system unless the player picked Light, or forced with Dark. */
@@ -53,6 +63,10 @@
     --scrim: rgba(0, 0, 0, 0.65);
     --board-square: #e9e3d6;
     --board-frame: #4d4739;
+    --surface-2: #302c27;
+    --accent: #4d8ff5;
+    --focus: #8ab8ff;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   }
 }
 :root[data-theme="dark"] {
@@ -76,6 +90,10 @@
   --scrim: rgba(0, 0, 0, 0.65);
   --board-square: #e9e3d6;
   --board-frame: #4d4739;
+  --surface-2: #302c27;
+  --accent: #4d8ff5;
+  --focus: #8ab8ff;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 * { box-sizing: border-box; }
@@ -114,11 +132,6 @@ button.danger { background: #b42318; color: #fff; border-color: #b42318; font-we
 /* ---------- Footer ---------- */
 .site-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; padding: 1rem; font-size: 0.85rem; color: var(--text-muted); border-top: 1px solid var(--border-soft); }
 .site-footer a { color: var(--link); text-decoration: none; }
-.theme-picker { display: inline-flex; align-items: center; gap: 0.4rem; margin-left: 0.5rem; }
-.theme-options { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
-.theme-options button { border: none; border-radius: 0; padding: 0.2rem 0.65rem; font-size: 0.82rem; background: var(--surface); color: var(--text-soft); display: inline-flex; align-items: center; gap: 0.3rem; }
-.theme-options button + button { border-left: 1px solid var(--border); }
-.theme-options button[aria-pressed="true"] { background: var(--text); color: var(--bg); font-weight: 600; }
 .site-footer a:hover, .site-footer a:focus-visible { text-decoration: underline; }
 
 /* ---------- Setup ---------- */
@@ -430,6 +443,153 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 0.3em; border: 1px sol
 @media (prefers-reduced-motion: reduce) {
   .finish-text, .notice, .token, .token-shine, .halo, .die-rolling, .turn-arrow, .base-active, .confetti-piece, .panel, .clock-paused { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Sheet (native <dialog>) ----------
+   A centred dialog on wide screens; a bottom sheet at 700px and below
+   (SHEET_QUERY in Sheet.tsx). States, set by Sheet.tsx:
+     [open]            shown with showModal(), animates in
+     [data-closing]    animating out; dialog.close() runs when the animation ends
+     [data-dragging]   following a finger; --drag-y holds the offset */
+.sheet {
+  padding: 0;
+  border: none;
+  color: inherit;
+  text-align: start; /* not inherited from where it sits in the page (setup is centred) */
+  background: var(--surface);
+  width: min(560px, calc(100% - 32px));
+  max-width: none;
+  max-height: min(82dvh, 760px);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
+  /* clip, not just hidden: an overflow: hidden box can still be scrolled by script or by focus
+     (scrollIntoView), which slid the header out of view. clip forbids scrolling entirely. */
+  overflow: hidden;
+  overflow: clip;
+  transform: translateY(var(--drag-y, 0px));
+}
+/* Only when open: a closed dialog must keep the browser's display: none. */
+.sheet[open] { display: flex; animation: dialog-in 0.2s ease-out; }
+.sheet[data-closing] { animation: dialog-out 0.15s ease-in forwards; }
+.sheet::backdrop { background: rgb(10 12 18 / 0.55); animation: fade-in 0.2s ease-out; }
+.sheet[data-closing]::backdrop { animation: fade-out 0.15s ease-in forwards; }
+/* Scroll lock: the page behind a modal sheet must not scroll (iOS scrolls it otherwise). */
+html:has(.sheet[open]) { overflow: hidden; }
+
+.sheet-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.sheet-header { position: relative; flex: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.85rem 0.6rem 0.65rem 1.25rem; border-bottom: 1px solid var(--line); }
+.sheet-header h2 { flex: 1; margin: 0; font-size: 1.2rem; }
+.sheet-handle { display: none; }
+.sheet-close { display: inline-flex; padding: 0.5rem; border: none; border-radius: 50%; background: transparent; }
+.sheet-close:hover { background: var(--surface-2); }
+/* The body scrolls on its own; reaching its end never scrolls (or pull-to-refreshes) the page. */
+.sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0.25rem 1.25rem 1.25rem; }
+
+@keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@keyframes dialog-out { to { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+
+@media (max-width: 700px) {
+  .sheet {
+    width: 100%;
+    max-height: 88dvh;
+    margin: auto 0 0; /* pinned to the bottom edge */
+    border-radius: 18px 18px 0 0;
+    /* Clears the home indicator on phones that have one. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Snap back after a short drag. Not while dragging (it would lag the finger) or closing. */
+    transition: transform 0.22s ease-out;
+  }
+  .sheet[data-dragging], .sheet[data-closing] { transition: none; }
+  .sheet[open] { animation: sheet-in 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+  .sheet[data-closing] { animation: sheet-out 0.2s ease-in forwards; }
+  /* The header is the drag area: the browser must not scroll or zoom when it is dragged. */
+  .sheet-header { padding-top: 1.35rem; touch-action: none; user-select: none; cursor: grab; }
+  .sheet-handle { display: block; position: absolute; top: 0.55rem; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: 999px; background: var(--line); }
+  .sheet-body { padding-inline: 1rem; }
+}
+@keyframes sheet-in { from { transform: translateY(100%); } }
+@keyframes sheet-out { from { transform: translateY(var(--drag-y, 0px)); } to { transform: translateY(100%); } }
+
+/* ---------- Rules ---------- */
+.rules section { padding: 0.85rem 0; border-bottom: 1px solid var(--line); }
+.rules section:last-child { border-bottom: none; }
+.rules h3 { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; font-size: 1rem; }
+.rules p { margin: 0; }
+.rules ul, .rules ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.3rem; }
+.rules b { font-weight: 650; }
+.rules .rules-steps { counter-reset: step; list-style: none; padding-left: 0; }
+.rules-steps li { counter-increment: step; position: relative; padding: 0.45rem 0.6rem 0.45rem 2.5rem; border-radius: 10px; background: var(--surface-2); }
+/* Positioned, not a flex item: flex would split the sentence's text and <b> runs into separate boxes. */
+.rules-steps li::before { content: counter(step); position: absolute; left: 0.55rem; top: 0.45rem; display: grid; place-items: center; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: var(--star); color: #1f2430; font-weight: 700; font-size: 0.85rem; }
+.rules-tag { font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); }
+
+/* ---------- Settings ---------- */
+.settings section { padding: 0.85rem 0; border-bottom: 1px solid var(--line); display: grid; gap: 0.7rem; }
+.settings section:last-child { border-bottom: none; }
+.settings h3 { margin: 0; font-size: 1rem; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.setting-fieldset { flex-wrap: wrap; border: none; margin: 0; padding: 0; }
+.setting-fieldset legend { float: left; margin: 0 0 0.4rem; padding: 0; }
+.setting-text { display: grid; gap: 0.1rem; min-width: 0; }
+.setting-label { font-weight: 600; }
+.setting-hint { display: block; color: var(--ink-soft); font-size: 0.86rem; }
+.setting-note { margin: -0.4rem 0 0; }
+/* 44px tall touch target around a small track. */
+.setting-switch { flex: none; display: inline-grid; place-items: center; min-width: 52px; min-height: 44px; padding: 0; border: none; background: transparent; }
+.setting-switch .switch-track { width: 42px; height: 24px; }
+.setting-switch .switch-knob { width: 20px; height: 20px; }
+.setting-switch .switch-on .switch-knob { transform: translateX(18px); }
+.setting-range { flex: 1; max-width: 240px; accent-color: var(--accent); min-height: 44px; }
+.segmented { clear: both; display: flex; width: 100%; padding: 3px; gap: 3px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+/* position: relative keeps the hidden radio inside the sheet's scrolling body. Without it the
+   radio's containing block was the <dialog>, and focusing it scrolled the whole dialog. */
+.segment { position: relative; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 40px; padding: 0.3rem 0.5rem; border-radius: 9px; cursor: pointer; font-size: 0.92rem; text-align: center; }
+.segment input { position: absolute; opacity: 0; pointer-events: none; }
+.segment:has(input:checked) { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+.segment:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 1px; }
+.sound-themes { display: grid; gap: 0.4rem; border: none; margin: 0; padding: 0; }
+.sound-themes legend { margin: 0 0 0.4rem; padding: 0; }
+.sound-theme { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.35rem 0.35rem 0.6rem; border: 1px solid var(--line); border-radius: 12px; }
+.sound-theme-on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sound-theme-pick { flex: 1; display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; min-width: 0; padding: 0.2rem 0; }
+.sound-theme-pick input { margin-top: 0.3rem; accent-color: var(--accent); }
+.sound-play { flex: none; display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
+.sound-try { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.chip-button { padding: 0.35rem 0.75rem; min-height: 36px; border-radius: 999px; font-size: 0.9rem; }
+.chip-button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* Actions that end or restart the game sit apart, below the everyday preferences. */
+/* Game menu: big, plainly described choices. */
+.game-menu { display: grid; gap: 0.6rem; padding: 0.85rem 0; }
+.game-choice { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.8rem 0.9rem; text-align: start; border-radius: 12px; min-height: 56px; }
+.game-choice svg { flex: none; margin-top: 0.1rem; }
+.game-choice-title { display: block; font-weight: 650; }
+.game-choice-detail { display: block; color: var(--ink-soft); font-size: 0.88rem; }
+.game-choice-danger { border-color: var(--danger); }
+.game-choice-danger .game-choice-title, .game-choice-danger svg { color: var(--danger); }
+.settings-reset { justify-self: start; }
+.settings-reset-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.settings-reset-confirm .setting-hint { flex-basis: 100%; }
+button.danger-outline { border-color: var(--danger); color: var(--danger); font-weight: 600; }
+
+
+/* ---------- Turn bar: prompt and banked dice ---------- */
+.turn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; margin: 0.2rem 0 0.8rem; min-height: 1.6em; }
+.turn-bar .prompt { margin: 0; flex: 1 1 18rem; }
+.dice-pool { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.dice-pool-label { font-size: 0.85rem; color: var(--ink-soft); }
+.dice-chip { display: inline-grid; place-items: center; padding: 3px; border-radius: 10px; border: 2px solid var(--line); background: var(--surface); }
+button.dice-chip { min-width: 44px; min-height: 44px; }
+.dice-chip-on { border-color: var(--arm, var(--accent)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--arm, var(--accent)) 35%, transparent); }
+.dice-chip:disabled { opacity: 0.35; }
+.mini-die { display: grid; grid-template-columns: repeat(3, 1fr); align-content: space-between; gap: 2px; width: 30px; height: 30px; padding: 4px; border-radius: 7px; background: #fff; border: 1px solid #c9c2b0; }
+.mini-die .pip { width: 100%; height: auto; aspect-ratio: 1; }
+
+/* ---------- Setup: house rules and the Rules/Settings buttons ---------- */
+.setup-tools { display: flex; justify-content: flex-end; gap: 0.4rem; margin-bottom: 0.5rem; }
+.house-rules { max-width: 460px; margin: 1.2rem auto 0; }
+.house-rules .setup-hint { margin: 0 0 0.6rem; }
+.house-rules .setup-option { margin: 0 0 0.6rem; }
 
 /* ---------- Phones ---------- */
 @media (max-width: 620px) {

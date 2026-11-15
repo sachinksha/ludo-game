@@ -1,12 +1,14 @@
 import { createBotProfile } from './bot'
-import { ENTRY_ROLL, buildMove, legalMovesFor, opponentsOn, progressOf } from './rules'
+import { ENTRY_ROLL, buildMove, legalMovesForPool, opponentsOn, playersAfterMove, progressOf } from './rules'
 import {
+  NO_HOUSE_RULES,
   TOKENS_PER_PLAYER,
   type BotProfile,
   type Color,
   type GameAction,
   type GameEvent,
   type GameState,
+  type HouseRules,
   type Move,
   type Player,
   type PlayerConfig,
@@ -36,13 +38,13 @@ export const secureRandom: Rng = () => {
 }
 
 /** Fair odds of a six. */
-const BASE_SIX_CHANCE = 1 / 6
+export const BASE_SIX_CHANCE = 1 / 6
 /** Stuck rolls allowed at fair odds before comeback dice start helping. */
 export const COMEBACK_GRACE = 3
 /** Extra chance of a six for each stuck roll past the grace period. */
-const COMEBACK_STEP = 0.06
+export const COMEBACK_STEP = 0.06
 /** Comeback dice never make a six more likely than this. */
-const COMEBACK_CAP = 0.5
+export const COMEBACK_CAP = 0.5
 
 /**
  * True when a player has nothing on the board: every unfinished token is in
@@ -111,7 +113,7 @@ export function displayNames(configs: PlayerConfig[]): string[] {
  * Builds a fresh game with 2 or 4 seats. Each bot gets a random playing style
  * from `rng`.
  */
-export function createGame(configs: PlayerConfig[], rng: Rng = secureRandom): GameState {
+export function createGame(configs: PlayerConfig[], rng: Rng = secureRandom, rules: HouseRules = NO_HOUSE_RULES): GameState {
   if (configs.length !== 2 && configs.length !== 4) {
     throw new Error('Ludo supports 2 or 4 players')
   }
@@ -135,6 +137,8 @@ export function createGame(configs: PlayerConfig[], rng: Rng = secureRandom): Ga
     players,
     currentIndex: 0,
     dice: null,
+    pool: [],
+    rules: { ...rules },
     phase: 'roll',
     legalMoves: [],
     winners: [],
@@ -159,10 +163,16 @@ function passTurn(state: GameState): GameState {
     ...state,
     currentIndex: nextActiveIndex(state.players, state.currentIndex),
     dice: null,
+    pool: [],
     phase: 'roll',
     legalMoves: [],
     sixStreak: 0,
   }
+}
+
+/** The game's house rules. Saves from before house rules have none (all off). */
+export function rulesOf(state: GameState): HouseRules {
+  return state.rules ?? NO_HOUSE_RULES
 }
 
 /** Wraps a state transition, bumping the action counter and storing events. */
@@ -171,35 +181,41 @@ function commit(state: GameState, events: GameEvent[]): GameState {
 }
 
 /**
- * Applies a roll with a known die value (phase 'roll' only). Handles the
- * three-sixes forfeit and the no-legal-move pass. Deterministic, so replaying
- * recorded rolls reproduces the same game.
+ * Applies a roll with a known die value (phase 'roll' only). The die goes into
+ * the turn's pool. Handles the three-sixes forfeit and the no-legal-move pass.
+ * Deterministic, so replaying recorded rolls reproduces the same game.
+ *
+ * With the roll-sixes-first house rule a 6 is banked and the player rolls
+ * again straight away; moving starts after the first roll that isn't a 6,
+ * using every banked die in any order. Three sixes in a row still forfeit the
+ * turn, and every banked die goes with it.
  */
 export function rollWithValue(state: GameState, value: number): GameState {
-  if (state.phase !== 'roll') return state
+  if (state.phase !== 'roll' || !Number.isInteger(value) || value < 1 || value > 6) return state
   const seat = state.currentIndex
   const player = state.players[seat]
+  const rules = rulesOf(state)
   const streak = value === ENTRY_ROLL ? state.sixStreak + 1 : 0
   const rollEvent: GameEvent = { type: 'roll', value, color: player.color }
 
   // Record the result on the seat before any other state change.
   const dryRolls = isStuck(player) && value !== ENTRY_ROLL ? player.dryRolls + 1 : 0
   const players = state.players.map((p, i) => (i === seat ? { ...p, lastRoll: value, dryRolls } : p))
-  const rolled: GameState = { ...state, players, dice: value, sixStreak: streak }
+  const pool = [...(state.pool ?? []), value]
+  const rolled: GameState = { ...state, players, dice: value, sixStreak: streak, pool }
 
   if (streak >= MAX_SIX_STREAK) {
-    return commit(passTurn(rolled), [
-      rollEvent,
-      { type: 'turnPass', color: player.color, reason: 'threeSixes' },
-    ])
+    const lost = pool.length > 1 ? { unused: pool } : {}
+    return commit(passTurn(rolled), [rollEvent, { type: 'turnPass', color: player.color, reason: 'threeSixes', ...lost }])
   }
 
-  const moves = legalMovesFor(players, players[seat], value)
+  // House rule: bank the 6 and roll again before anything moves.
+  if (rules.rollSixesFirst && value === ENTRY_ROLL) return commit(rolled, [rollEvent])
+
+  const moves = legalMovesForPool(players, players[seat], pool)
   if (moves.length === 0) {
-    return commit(passTurn(rolled), [
-      rollEvent,
-      { type: 'turnPass', color: player.color, reason: 'noMoves' },
-    ])
+    const lost = pool.length > 1 ? { unused: pool } : {}
+    return commit(passTurn(rolled), [rollEvent, { type: 'turnPass', color: player.color, reason: 'noMoves', ...lost }])
   }
 
   return commit({ ...rolled, phase: 'move', legalMoves: moves }, [rollEvent])
@@ -211,10 +227,13 @@ export function rollDice(state: GameState, rng: Rng): GameState {
   return rollWithValue(state, rollDie(rng))
 }
 
-/** Applies the chosen token's move. The tokenId must be among legalMoves. */
-export function applyMove(state: GameState, tokenId: number): GameState {
+/**
+ * Applies the chosen token's move with die `die` (the first banked die that
+ * moves this token, when left out). Ignored unless it is among legalMoves.
+ */
+export function applyMove(state: GameState, tokenId: number, die?: number): GameState {
   if (state.phase !== 'move') return state
-  const move = state.legalMoves.find((m) => m.tokenId === tokenId)
+  const move = state.legalMoves.find((m) => m.tokenId === tokenId && (die === undefined || m.die === die))
   if (!move) return state
   return performMove(state, move)
 }
@@ -225,7 +244,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     case 'roll':
       return rollWithValue(state, action.value)
     case 'move':
-      return applyMove(state, action.tokenId)
+      return applyMove(state, action.tokenId, action.die)
     case 'end':
       return endGame(state)
     case 'takeover':
@@ -280,38 +299,38 @@ export function endGame(state: GameState): GameState {
 
 /**
  * Executes a move: moves the token, captures any opponent, records finishing
- * ranks and decides whether the same player rolls again (after a six, a
- * capture or a token reaching the centre) or the
- * turn passes. Declares the game over when one player remains unfinished.
+ * ranks and decides what happens next. Declares the game over when one player
+ * remains unfinished.
+ *
+ * Classic: a six, a capture or a token reaching the centre (not the last one)
+ * earns another roll; otherwise the turn passes.
+ *
+ * Roll sixes first: the sixes were already rolled, so using one earns
+ * nothing. A capture or a token reaching the centre earns a roll straight
+ * away, and its die joins any dice still banked. Otherwise the next banked die
+ * is used; dice no token can use are lost and the turn passes. Finishing (the
+ * last token home) always ends the turn, losing any dice left.
  */
 export function performMove(state: GameState, move: Move): GameState {
   const idx = state.currentIndex
   const mover = state.players[idx]
+  const rules = rulesOf(state)
   const events: GameEvent[] = [{ type: 'move', move, color: mover.color }]
 
-  const players: Player[] = state.players.map((p) => ({
-    ...p,
-    tokens: p.tokens.map((t) => ({ ...t })),
-  }))
+  // Use up the move's die.
+  const pool = [...(state.pool ?? [])]
+  const at = pool.indexOf(move.die)
+  if (at >= 0) pool.splice(at, 1)
 
-  // 1. Move the token.
-  players[idx].tokens = players[idx].tokens.map((t) =>
-    t.id === move.tokenId ? { ...t, state: move.to } : t,
-  )
-
-  // 2. Capture: every opponent token on the landing square returns to its
-  //    base, including a stack of two or more.
+  // Move the token; every opponent on the landing square (a whole stack) goes back to base.
+  const players = playersAfterMove(state.players, mover.color, move)
   if (move.captured && move.to.kind === 'track') {
     for (const hit of opponentsOn(state.players, mover.color, move.to.pos)) {
-      const victimIdx = players.findIndex((p) => p.color === hit.color)
-      players[victimIdx].tokens = players[victimIdx].tokens.map((t) =>
-        t.id === hit.tokenId ? { ...t, state: { kind: 'yard' as const } } : t,
-      )
       events.push({ type: 'capture', color: mover.color, victim: hit.color })
     }
   }
 
-  // 3. Finish: every token of this seat reached the centre.
+  // Finish: every token of this seat reached the centre.
   let finishedNow = false
   const everyHome = players[idx].tokens.every((t) => t.state.kind === 'home')
   if (everyHome && players[idx].finishRank === null) {
@@ -321,9 +340,9 @@ export function performMove(state: GameState, move: Move): GameState {
     events.push({ type: 'finish', color: mover.color, rank })
   }
 
-  const base: GameState = { ...state, players, legalMoves: [], dice: null }
+  const base: GameState = { ...state, players, legalMoves: [], pool, dice: null }
 
-  // 4. Game over when at most one seat is still playing.
+  // Game over when at most one seat is still playing.
   const stillPlaying = players.filter((p) => p.finishRank === null)
   if (stillPlaying.length <= 1) {
     const winners: Color[] = players
@@ -332,16 +351,27 @@ export function performMove(state: GameState, move: Move): GameState {
       .map((p) => p.color)
     winners.push(...stillPlaying.map((p) => p.color))
     events.push({ type: 'gameOver', winners })
-    return commit({ ...base, phase: 'gameOver', winners, sixStreak: 0 }, events)
+    return commit({ ...base, phase: 'gameOver', winners, sixStreak: 0, pool: [] }, events)
   }
 
-  // 5. Extra roll on a six, a capture, or a token reaching the centre, unless
-  //    that was the seat's last token. Otherwise the turn passes.
-  const rolledSix = state.dice === ENTRY_ROLL
-  const earnedBonus = rolledSix || move.captured !== null || move.finishes
-  if (earnedBonus && !finishedNow) {
-    return commit({ ...base, phase: 'roll' }, events)
+  // A seat that just finished is done: leftover dice and bonus rolls are lost.
+  if (finishedNow) return commit(passTurn(base), events)
+
+  const earnedRoll = move.captured !== null || move.finishes
+
+  if (rules.rollSixesFirst) {
+    // Bonus roll straight away; the new die joins whatever is still banked.
+    if (earnedRoll) return commit({ ...base, phase: 'roll' }, events)
+    if (pool.length > 0) {
+      const next = legalMovesForPool(players, players[idx], pool)
+      if (next.length > 0) return commit({ ...base, phase: 'move', legalMoves: next, dice: state.dice }, events)
+      events.push({ type: 'turnPass', color: mover.color, reason: 'noMoves', unused: pool })
+    }
+    return commit(passTurn(base), events)
   }
+
+  // Classic: another roll after a six, a capture or a token reaching the centre.
+  if (earnedRoll || move.die === ENTRY_ROLL) return commit({ ...base, phase: 'roll' }, events)
   return commit(passTurn(base), events)
 }
 
@@ -350,12 +380,12 @@ export function playersStillPlaying(state: GameState): Color[] {
   return state.players.filter((p) => p.finishRank === null).map((p) => p.color)
 }
 
-/** The move a token would make with the current dice, or null (UI preview). */
-export function previewMove(state: GameState, tokenId: number): Move | null {
-  if (state.dice === null) return null
+/** The move a token would make with `die` (default: the first banked die), or null (UI preview). */
+export function previewMove(state: GameState, tokenId: number, die: number | undefined = state.pool?.[0]): Move | null {
+  if (die === undefined) return null
   const player = state.players[state.currentIndex]
   const token = player.tokens.find((t) => t.id === tokenId)
-  return token ? buildMove(state.players, player, token, state.dice) : null
+  return token ? buildMove(state.players, player, token, die) : null
 }
 
 /** Identifies the square a token occupies. All yard tokens share one spot. */
@@ -381,6 +411,8 @@ function spotKey(state: Move['from']): string {
  */
 export function autoMoveTokenIds(legalMoves: Move[]): number[] | null {
   if (legalMoves.length === 0) return null
+  // With different banked dice the order is a real decision.
+  if (new Set(legalMoves.map((m) => m.die)).size > 1) return null
   const first = spotKey(legalMoves[0].from)
   if (!legalMoves.every((m) => spotKey(m.from) === first)) return null
   return legalMoves.map((m) => m.tokenId)

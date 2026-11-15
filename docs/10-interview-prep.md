@@ -85,7 +85,7 @@ Have an honest list ready. For example:
 - `GameScreen` is large; split it and extract a `useShortcuts` hook.
 - Enable `noUncheckedIndexedAccess` and fix the fallout.
 - Add Playwright end-to-end tests for two-browser online play in CI.
-- Persist local games via the action log.
+- Make comeback dice part of `GameState.rules` too, so every rule that affects a game travels with it.
 - Allow a self-hosted signalling server via configuration.
 - Board text alternative for screen reader users.
 

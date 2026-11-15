@@ -1,47 +1,166 @@
 import { create } from 'zustand'
+import { setMuted, setSoundTheme, setVolume } from '../audio/sfx'
+import { SOUND_THEME_IDS, type SoundThemeId } from '../audio/themes'
 import { describeEvent } from '../game/describe'
-import { createGame } from '../game/engine'
+import { applyAction, createGame, type Rng } from '../game/engine'
 import { replay, undoIndex } from '../game/history'
-import type { GameAction, GameState, PlayerConfig } from '../game/types'
-import { isTheme, type Theme } from '../theme'
+import { HOUSE_RULE_KEYS, type GameAction, type GameState, type HouseRules, type PlayerConfig } from '../game/types'
+import { applyTheme, isTheme, type Theme } from '../theme'
+
+// ---------------------------------------------------------------------------
+// Browser storage. Every access is wrapped: storage can be blocked, full, or
+// hold data from an older version. The game must work without it.
+
+function readJson(key: string): unknown {
+  try {
+    const raw = window.localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as unknown) : null
+  } catch {
+    return null
+  }
+}
+
+function writeJson(key: string, value: unknown): void {
+  try {
+    if (value === null) window.localStorage.removeItem(key)
+    else window.localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Storage blocked or full: it still works for this visit.
+  }
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+
+// ---------------------------------------------------------------------------
+// Settings
 
 /** Player preferences kept in the browser between visits. */
 export interface Settings {
-  /** Roll automatically for human players when their turn comes. */
+  /** Roll automatically for this device's humans when their turn comes. */
   autoRoll: boolean
-  /** Move automatically for human players when there is no real choice. */
+  /** Move automatically for this device's humans when there is no real choice. */
   autoMove: boolean
+  /** Show Undo and Redo (local games only). Off by default: undo changes how the game plays. */
+  undo: boolean
   /** Raise the odds of a six for players stuck in the base for a long time. */
   comebackDice: boolean
+  /** House rules for new games. A game keeps the rules it started with. */
+  houseRules: HouseRules
+  /** Sound effects on. */
+  sound: boolean
+  /** Which instrument voices the sound effects. */
+  soundTheme: SoundThemeId
+  /** Sound effects volume, 0 to 1. */
+  volume: number
   /** Colour theme: follow the system (default), or force light or dark. */
   theme: Theme
 }
 
-const SETTINGS_KEY = 'ludo:settings'
-const DEFAULT_SETTINGS: Settings = { autoRoll: true, autoMove: true, comebackDice: true, theme: 'system' }
+/** The settings that are simple on/off switches. */
+export type ToggleSetting = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings]
 
+export const SETTINGS_KEY = 'ludo:settings'
+export const DEFAULT_SETTINGS: Settings = {
+  autoRoll: true,
+  autoMove: true,
+  undo: false,
+  comebackDice: true,
+  houseRules: { rollSixesFirst: true },
+  sound: true,
+  soundTheme: 'tabla',
+  volume: 0.8,
+  theme: 'system',
+}
+
+/**
+ * Settings are flat, independent preferences, so they merge key by key over
+ * the defaults: an old save simply lacks new keys, and a bad value (an unknown
+ * theme, a volume of 7) is ignored. No version number needed.
+ */
 function loadSettings(): Settings {
+  const parsed = readJson(SETTINGS_KEY)
+  const settings: Settings = { ...DEFAULT_SETTINGS, houseRules: { ...DEFAULT_SETTINGS.houseRules } }
+  if (!isObject(parsed)) return settings
+  for (const key of ['autoRoll', 'autoMove', 'undo', 'comebackDice', 'sound'] as const) {
+    const value = parsed[key]
+    if (typeof value === 'boolean') settings[key] = value
+  }
+  if (isTheme(parsed.theme)) settings.theme = parsed.theme
+  if (SOUND_THEME_IDS.includes(parsed.soundTheme as SoundThemeId)) settings.soundTheme = parsed.soundTheme as SoundThemeId
+  if (typeof parsed.volume === 'number' && parsed.volume >= 0 && parsed.volume <= 1) settings.volume = parsed.volume
+  if (isObject(parsed.houseRules)) {
+    const saved = parsed.houseRules
+    for (const key of HOUSE_RULE_KEYS) if (typeof saved[key] === 'boolean') settings.houseRules[key] = saved[key]
+  }
+  return settings
+}
+
+/** Pushes the sound settings into the audio module. */
+function applySound(settings: Settings): void {
+  setMuted(!settings.sound)
+  setVolume(settings.volume)
+  setSoundTheme(settings.soundTheme)
+}
+
+// ---------------------------------------------------------------------------
+// Saved local game: the initial state plus the action log (event sourcing makes
+// this cheap). Online games are never saved; the host owns those.
+
+export const SAVED_GAME_KEY = 'ludo:game'
+export const LAST_SETUP_KEY = 'ludo:last-setup'
+export const SAVE_VERSION = 1
+
+interface SavedGame {
+  v: number
+  configs: PlayerConfig[]
+  initial: GameState
+  actions: GameAction[]
+}
+
+/**
+ * Upgrades a save one version at a time, so a save from any older version
+ * walks up the chain. Empty for now: version 1 is the first saved format.
+ * Add `1: (old) => ({ ...old, v: 2, ... })` when the state's shape changes.
+ */
+const MIGRATIONS: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {}
+
+export function migrateSave(raw: Record<string, unknown>): Record<string, unknown> | null {
+  let save = raw
+  while (save.v !== SAVE_VERSION) {
+    const step = typeof save.v === 'number' ? MIGRATIONS[save.v] : undefined
+    if (!step) return null
+    save = step(save)
+  }
+  return save
+}
+
+/**
+ * Reads a saved local game, or null if there is none or it does not replay
+ * cleanly (unknown version, edited by hand, or from a different rules version).
+ */
+export function loadSavedGame(): SavedGame | null {
+  const raw = readJson(SAVED_GAME_KEY)
+  const parsed = isObject(raw) ? migrateSave(raw) : null
+  if (!parsed) return null
+  const { configs, initial, actions } = parsed as unknown as SavedGame
+  if (!Array.isArray(configs) || !isObject(initial) || !Array.isArray(initial.players) || !Array.isArray(actions)) return null
   try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY)
-    if (!raw) return DEFAULT_SETTINGS
-    const parsed = JSON.parse(raw) as Partial<Settings>
-    return {
-      autoRoll: typeof parsed.autoRoll === 'boolean' ? parsed.autoRoll : DEFAULT_SETTINGS.autoRoll,
-      autoMove: typeof parsed.autoMove === 'boolean' ? parsed.autoMove : DEFAULT_SETTINGS.autoMove,
-      comebackDice: typeof parsed.comebackDice === 'boolean' ? parsed.comebackDice : DEFAULT_SETTINGS.comebackDice,
-      theme: isTheme(parsed.theme) ? parsed.theme : DEFAULT_SETTINGS.theme,
+    let state: GameState = initial
+    for (const action of actions) {
+      const next = applyAction(state, action)
+      if (next === state) return null // an action that no longer applies
+      state = next
     }
+    if (state.phase === 'gameOver') return null
+    return { v: SAVE_VERSION, configs, initial, actions }
   } catch {
-    return DEFAULT_SETTINGS
+    return null
   }
 }
 
-function saveSettings(settings: Settings): void {
-  try {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
-  } catch {
-    // Storage blocked or full: the setting still applies for this visit.
-  }
+function loadLastSetup(): PlayerConfig[] | null {
+  const parsed = readJson(LAST_SETUP_KEY)
+  return Array.isArray(parsed) ? (parsed as PlayerConfig[]) : null
 }
 
 /** A game needs at least one human seat; bot-only games are not started. */
@@ -55,9 +174,9 @@ export interface LogEntry {
 }
 
 export interface GameStoreState {
-  /** Seats chosen on the setup screen, or null before a game starts. */
+  /** Seats of the current local game, or null (no game, or an online guest's game). */
   configs: PlayerConfig[] | null
-  /** The most recent seats used, kept after abort so setup can prefill them. */
+  /** The most recent seats used, so setup can prefill them. Kept between visits. */
   lastConfigs: PlayerConfig[] | null
   /** Increments on every new game, so the UI can remount cleanly. */
   session: number
@@ -76,17 +195,18 @@ export interface GameStoreState {
   logOpen: boolean
   settings: Settings
 
-  start: (configs: PlayerConfig[]) => void
-  /** Replaces the game with one received from an online host. */
+  /** Starts a game with the house rules from settings. `rng` picks bot styles (injectable for tests). */
+  start: (configs: PlayerConfig[], rng?: Rng) => void
+  /** Replaces the game with one received from an online host. Not saved; a local save is kept. */
   load: (initial: GameState, actions: GameAction[], paused: boolean) => void
-  /** Adds a decision to the history. Clears the redo stack. */
+  /** Adds a decision to the history and clears the redo stack. An illegal action is ignored. */
   record: (action: GameAction) => void
   undo: () => void
   redo: () => void
   setPaused: (paused: boolean) => void
   setLogOpen: (open: boolean) => void
   updateSettings: (patch: Partial<Settings>) => void
-  /** Discards the current game and returns to setup. */
+  /** Discards the current game and returns to setup (or, after an online guest's game, to the saved local game). */
   abort: () => void
 }
 
@@ -104,22 +224,49 @@ function derive(initial: GameState | null, actions: GameAction[]) {
   return { game: state, log }
 }
 
-export const useGameStore = create<GameStoreState>()((set, get) => ({
-  configs: null,
-  lastConfigs: null,
-  session: 0,
-  initial: null,
-  actions: [],
-  redoStack: [],
-  game: null,
-  log: [],
-  paused: false,
-  logOpen: false,
-  settings: loadSettings(),
+/**
+ * Saves the local game, or clears the save when it is over. Hosted games have
+ * remote seats: the host session owns them and a refresh cannot bring the
+ * guests back, so they are never saved. A guest's game (no configs) is not this
+ * device's to save, so an earlier local save is left alone.
+ */
+function persist(s: Pick<GameStoreState, 'configs' | 'initial' | 'actions' | 'game'>): void {
+  if (!s.configs) return
+  if (s.configs.some((c) => c.remote) || !s.initial || !s.game || s.game.phase === 'gameOver') {
+    writeJson(SAVED_GAME_KEY, null)
+    return
+  }
+  const saved: SavedGame = { v: SAVE_VERSION, configs: s.configs, initial: s.initial, actions: s.actions }
+  writeJson(SAVED_GAME_KEY, saved)
+}
 
-  start: (configs) => {
+/** Starting state: a saved local game resumes paused, so a refresh never costs a move. */
+function initialState() {
+  const settings = loadSettings()
+  applySound(settings)
+  if (typeof document !== 'undefined') applyTheme(settings.theme)
+  const saved = loadSavedGame()
+  return {
+    configs: saved?.configs ?? null,
+    lastConfigs: loadLastSetup(),
+    session: 0,
+    initial: saved?.initial ?? null,
+    actions: saved?.actions ?? [],
+    redoStack: [] as GameAction[][],
+    paused: saved !== null,
+    logOpen: false,
+    settings,
+    ...derive(saved?.initial ?? null, saved?.actions ?? []),
+  }
+}
+
+export const useGameStore = create<GameStoreState>()((set, get) => ({
+  ...initialState(),
+
+  start: (configs, rng) => {
     if (!hasHuman(configs)) return
-    const initial = createGame(configs)
+    const initial = createGame(configs, rng, get().settings.houseRules)
+    writeJson(LAST_SETUP_KEY, configs)
     set((s) => ({
       configs,
       lastConfigs: configs,
@@ -130,6 +277,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       paused: false,
       ...derive(initial, []),
     }))
+    persist(get())
   },
 
   load: (initial, actions, paused) => {
@@ -145,9 +293,19 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   },
 
   record: (action) => {
-    const { initial, actions } = get()
-    const next = [...actions, action]
-    set({ actions: next, redoStack: [], ...derive(initial, next) })
+    const { game, actions, log } = get()
+    if (!game) return
+    // Apply just the new action: the same result as a full replay, without
+    // replaying the whole game on every step.
+    const state = applyAction(game, action)
+    if (state === game) return // not legal here: never enters the history
+    const i = actions.length
+    const entries = state.events.flatMap((event, j) => {
+      const text = describeEvent(event)
+      return text === null ? [] : [{ id: `${i}-${j}`, text }]
+    })
+    set({ actions: [...actions, action], redoStack: [], game: state, log: [...log, ...entries] })
+    persist(get())
   },
 
   undo: () => {
@@ -156,19 +314,17 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
     if (!initial || j === null) return
     const kept = actions.slice(0, j)
     const removed = actions.slice(j)
-    set({
-      actions: kept,
-      redoStack: [removed, ...redoStack],
-      ...derive(initial, kept),
-    })
+    set({ actions: kept, redoStack: [removed, ...redoStack], ...derive(initial, kept) })
+    persist(get())
   },
 
   redo: () => {
     const { initial, actions, redoStack } = get()
-    if (!initial || redoStack.length === 0) return
     const [group, ...rest] = redoStack
+    if (!initial || !group) return
     const next = [...actions, ...group]
     set({ actions: next, redoStack: rest, ...derive(initial, next) })
+    persist(get())
   },
 
   setPaused: (paused) => set({ paused }),
@@ -177,19 +333,26 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
 
   updateSettings: (patch) => {
     const settings = { ...get().settings, ...patch }
-    saveSettings(settings)
+    writeJson(SETTINGS_KEY, settings)
+    applySound(settings)
+    applyTheme(settings.theme)
     set({ settings })
   },
 
-  abort: () =>
+  abort: () => {
+    // Leaving an online guest's game (no local seats) brings back the local
+    // game saved before joining, paused. Leaving a local game discards it.
+    const wasLocal = get().configs !== null
+    if (wasLocal) writeJson(SAVED_GAME_KEY, null)
+    const saved = wasLocal ? null : loadSavedGame()
     set((s) => ({
-      configs: null,
+      configs: saved?.configs ?? null,
       session: s.session + 1,
-      initial: null,
-      actions: [],
+      initial: saved?.initial ?? null,
+      actions: saved?.actions ?? [],
       redoStack: [],
-      game: null,
-      log: [],
-      paused: false,
-    })),
+      paused: saved !== null,
+      ...derive(saved?.initial ?? null, saved?.actions ?? []),
+    }))
+  },
 }))

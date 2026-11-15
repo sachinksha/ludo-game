@@ -1,21 +1,39 @@
 /**
- * Sound effects synthesised with the Web Audio API. No audio files are shipped,
- * so there are no licensing concerns and nothing extra to download.
+ * Sound effects synthesised with the Web Audio API, in a choice of themes
+ * (themes.ts). No audio files are shipped, so there are no licensing concerns
+ * and nothing extra to download.
  *
  * Browsers only allow audio after a user gesture, so the AudioContext is created
- * lazily on the first play call.
+ * lazily on the first play call. Every sound goes through one master chain:
+ * theme level, then the player's volume, then a limiter so stacked sounds
+ * (a tabla tihai, a fast walk) never clip.
  */
+import { SOUND_THEMES, type SoundName, type SoundThemeId } from './themes'
 
-export type SoundName = 'roll' | 'move' | 'capture' | 'finish' | 'win' | 'pass'
+export type { SoundName, SoundThemeId } from './themes'
 
 let ctx: AudioContext | null = null
+let master: GainNode | null = null
 let muted = false
+let volume = 0.8
+let theme: SoundThemeId = 'classic'
 
 function getContext(): AudioContext | null {
   if (typeof window === 'undefined') return null
   const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   if (!Ctor) return null
-  if (!ctx) ctx = new Ctor()
+  if (!ctx) {
+    ctx = new Ctor()
+    const limiter = ctx.createDynamicsCompressor()
+    limiter.threshold.value = -10
+    limiter.knee.value = 6
+    limiter.ratio.value = 12
+    limiter.attack.value = 0.003
+    limiter.release.value = 0.15
+    master = ctx.createGain()
+    master.gain.value = volume
+    master.connect(limiter).connect(ctx.destination)
+  }
   if (ctx.state === 'suspended') void ctx.resume()
   return ctx
 }
@@ -28,95 +46,41 @@ export function isMuted(): boolean {
   return muted
 }
 
-interface ToneSpec {
-  freq: number
-  start: number
-  duration: number
-  type?: OscillatorType
-  gain?: number
-  /** Optional frequency slide target, for a rising or falling "chirp". */
-  slideTo?: number
+/** Master volume, 0 to 1. */
+export function setVolume(value: number): void {
+  volume = Math.min(1, Math.max(0, value))
+  if (master && ctx) master.gain.setTargetAtTime(volume, ctx.currentTime, 0.02)
 }
 
-function playTones(tones: ToneSpec[]): void {
-  if (muted) return
+export function setSoundTheme(id: SoundThemeId): void {
+  if (id in SOUND_THEMES) theme = id
+}
+
+export function currentSoundTheme(): SoundThemeId {
+  return theme
+}
+
+/** Plays `name` from `themeId` now, through the master chain. */
+function play(name: SoundName, themeId: SoundThemeId): void {
   const ac = getContext()
-  if (!ac) return
-  const now = ac.currentTime
-  for (const t of tones) {
-    const osc = ac.createOscillator()
-    const amp = ac.createGain()
-    osc.type = t.type ?? 'sine'
-    osc.frequency.setValueAtTime(t.freq, now + t.start)
-    if (t.slideTo !== undefined) {
-      osc.frequency.exponentialRampToValueAtTime(t.slideTo, now + t.start + t.duration)
-    }
-    const peak = t.gain ?? 0.2
-    amp.gain.setValueAtTime(0, now + t.start)
-    amp.gain.linearRampToValueAtTime(peak, now + t.start + 0.01)
-    amp.gain.exponentialRampToValueAtTime(0.0001, now + t.start + t.duration)
-    osc.connect(amp).connect(ac.destination)
-    osc.start(now + t.start)
-    osc.stop(now + t.start + t.duration + 0.02)
-  }
+  if (!ac || !master) return
+  const t = SOUND_THEMES[themeId]
+  const trim = ac.createGain()
+  trim.gain.value = t.level
+  trim.connect(master)
+  t.sounds[name](ac, trim, ac.currentTime + 0.005)
 }
 
-/** A short burst of filtered noise, used for the dice rattle. */
-function playNoiseBurst(duration: number, gain: number): void {
-  if (muted) return
-  const ac = getContext()
-  if (!ac) return
-  const length = Math.floor(ac.sampleRate * duration)
-  const buffer = ac.createBuffer(1, length, ac.sampleRate)
-  const data = buffer.getChannelData(0)
-  for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length)
-  const src = ac.createBufferSource()
-  src.buffer = buffer
-  const amp = ac.createGain()
-  amp.gain.value = gain
-  src.connect(amp).connect(ac.destination)
-  src.start()
-}
-
-const SOUNDS: Record<SoundName, () => void> = {
-  roll: () => {
-    // Dice rattle: a few noise ticks, then a soft thud.
-    for (let i = 0; i < 6; i++) playNoiseBurst(0.03, 0.15)
-    playTones([{ freq: 180, start: 0.18, duration: 0.12, type: 'triangle', gain: 0.25 }])
-  },
-  move: () => {
-    playTones([{ freq: 520, start: 0, duration: 0.09, type: 'triangle', gain: 0.18, slideTo: 380 }])
-  },
-  capture: () => {
-    playTones([
-      { freq: 300, start: 0, duration: 0.18, type: 'sawtooth', gain: 0.12, slideTo: 90 },
-      { freq: 880, start: 0.12, duration: 0.2, type: 'square', gain: 0.08, slideTo: 440 },
-    ])
-  },
-  finish: () => {
-    playTones([
-      { freq: 523, start: 0, duration: 0.15, type: 'triangle', gain: 0.2 },
-      { freq: 659, start: 0.12, duration: 0.15, type: 'triangle', gain: 0.2 },
-      { freq: 784, start: 0.24, duration: 0.25, type: 'triangle', gain: 0.22 },
-    ])
-  },
-  win: () => {
-    const notes = [523, 659, 784, 1046, 784, 1046]
-    playTones(
-      notes.map((freq, i) => ({
-        freq,
-        start: i * 0.14,
-        duration: 0.22,
-        type: 'triangle' as const,
-        gain: 0.22,
-      })),
-    )
-  },
-  pass: () => {
-    playTones([{ freq: 260, start: 0, duration: 0.2, type: 'sine', gain: 0.15, slideTo: 180 }])
-  },
-}
-
+/** A game sound in the chosen theme. Silent when muted. */
 export function playSound(name: SoundName): void {
-  SOUNDS[name]()
+  if (muted) return
+  play(name, theme)
+}
+
+/**
+ * Plays a sound for the Settings "Try" buttons. It plays even when game
+ * sounds are off: the player pressed a button to hear it.
+ */
+export function previewSound(name: SoundName, themeId: SoundThemeId = theme): void {
+  play(name, themeId)
 }

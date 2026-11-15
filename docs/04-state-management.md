@@ -28,7 +28,8 @@ log: LogEntry[]              // derived from the events of each action
 
 Each `record(action)` appends and re-derives. This is **event sourcing**: store the events, derive the state. What it buys:
 
-- **Undo/redo** is slicing an array ([`undoIndex`](../src/game/history.ts) finds the last human roll). Redo puts the slice back.
+- **Undo/redo** is slicing an array ([`undoIndex`](../src/game/history.ts) finds the last human decision, a move or a roll, so each undo is one step). Redo puts the slice back.
+- **Saving** is writing `{ initial, actions }` to `localStorage` after each action, and loading is a replay ([chapter 11](11-house-rules-settings-and-sheets.md)).
 - **The game log** is a by-product of replay.
 - **Tests** can build any position by replaying actions.
 - **Online play** sends the same actions over the network. A guest is a replica that applies the host's log ([chapter 8](08-multiplayer-system-design.md)).

@@ -22,9 +22,9 @@ export function describeEvent(event: GameEvent): string | null {
     case 'finish':
       return `${NAME[event.color]} finished in place ${event.rank}`
     case 'turnPass':
-      return event.reason === 'threeSixes'
-        ? `${NAME[event.color]} rolled three sixes and forfeits the turn`
-        : `${NAME[event.color]} has no legal move`
+      if (event.reason === 'threeSixes') return `${NAME[event.color]} rolled three sixes and forfeits the turn`
+      if (event.unused) return `${NAME[event.color]} can't use the ${event.unused.join(', ')}`
+      return `${NAME[event.color]} has no legal move`
     case 'takeover':
       return `${event.from} left. ${event.to} now plays ${NAME[event.color]}`
     case 'gameOver':

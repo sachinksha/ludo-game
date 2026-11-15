@@ -1,5 +1,5 @@
 import { TRACK_LENGTH, isSafeSquare, toRelativeIndex } from './board'
-import { opponentsOn, progressOf } from './rules'
+import { legalMovesForPool, opponentsOn, playersAfterMove, progressOf } from './rules'
 import type { BotProfile, BotWeights, Color, GameState, Move, Persona, Player } from './types'
 
 /** Opponent tokens a move sends home, as "color:id" keys. */
@@ -147,18 +147,67 @@ export function scoreMove(state: GameState, move: Move, rng: Rng = () => 0): num
   return score + rng() * w.noise
 }
 
+/** How many of the best-looking moves are explored at each step of a dice plan. */
+const PLAN_BEAM = 3
+/** With two banked dice, how many first moves get a full follow-up. */
+const PLAN_FIRST_MOVES = 12
+
+/**
+ * The position after `move`, with that die used up: what the next move of the
+ * same turn would face (roll sixes first). Finishing the seat ends the turn,
+ * so nothing follows it. Bonus rolls from captures are not planned for: their
+ * dice are unknown.
+ */
+function afterPlanStep(state: GameState, move: Move): GameState {
+  const mover = state.players[state.currentIndex]
+  const players = playersAfterMove(state.players, mover.color, move)
+  const moved = players[state.currentIndex]
+  const pool = [...(state.pool ?? [])]
+  pool.splice(pool.indexOf(move.die), 1)
+  const done = moved.tokens.every((t) => t.state.kind === 'home')
+  const legalMoves = done ? [] : legalMovesForPool(players, moved, pool)
+  return { ...state, players, pool: done ? [] : pool, legalMoves, phase: legalMoves.length > 0 ? 'move' : 'roll' }
+}
+
+/**
+ * Best total score of the rest of a dice plan from `state`, exploring the
+ * PLAN_BEAM best-looking moves at each step. Dice no token can use add
+ * nothing, so plans that use every die tend to win.
+ */
+function planValue(state: GameState, depth: number): number {
+  if (depth === 0 || state.legalMoves.length === 0) return 0
+  const ranked = state.legalMoves
+    .map((move) => ({ move, score: scoreMove(state, move) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, PLAN_BEAM)
+  return Math.max(...ranked.map(({ move, score }) => score + planValue(afterPlanStep(state, move), depth - 1)))
+}
+
 /**
  * Picks the bot's move: the highest score, with a small random nudge from
  * `rng` so the same position does not always produce the same choice. Exact
- * ties resolve to the lowest token id.
+ * ties resolve to the earlier move in legal-move order.
+ *
+ * With several dice banked (roll sixes first) the order matters: a 6 that
+ * brings a token out might open a capture for the 4. So each candidate adds
+ * the best follow-up plan for the remaining dice (a small beam search, at most
+ * two dice ahead), judged with the bot's own persona weights.
  */
 export function chooseBotMove(state: GameState, rng: Rng = Math.random): Move | null {
   if (state.legalMoves.length === 0) return null
+  const extraDice = Math.min(2, Math.max(0, (state.pool?.length ?? 1) - 1))
+  const scored = state.legalMoves.map((move) => ({ move, score: scoreMove(state, move, rng) }))
+  const candidates =
+    extraDice === 0
+      ? scored
+      : [...scored]
+          .sort((a, b) => b.score - a.score)
+          .slice(0, extraDice === 1 ? PLAN_FIRST_MOVES : PLAN_BEAM * 2)
+          .map(({ move, score }) => ({ move, score: score + planValue(afterPlanStep(state, move), extraDice) }))
   let best: Move | null = null
   let bestScore = -Infinity
-  for (const move of state.legalMoves) {
-    const score = scoreMove(state, move, rng)
-    if (score > bestScore || (score === bestScore && best && move.tokenId < best.tokenId)) {
+  for (const { move, score } of candidates) {
+    if (score > bestScore) {
       best = move
       bestScore = score
     }

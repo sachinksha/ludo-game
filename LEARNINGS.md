@@ -2,6 +2,8 @@
 
 A playbook for building another turn-based browser game from what this Ludo game already does. It says what to copy, what to adapt, which behaviours players will expect again, and which mistakes not to repeat.
 
+The second game, Star Hop, was built from this playbook, and its improvements came back: a house rule with banked dice, the Settings sheet and Game menu, sound themes, saved games and opt-in undo ([docs/11](docs/11-house-rules-settings-and-sheets.md)). Star Hop's own `LEARNINGS.md` covers what it added on top.
+
 You can hand this file to a coding assistant at the start of the next project (see [Kick-off prompt](#kick-off-prompt)). For deeper explanations of each pattern, see the study guide in [docs/](docs/README.md).
 
 ## Contents
@@ -52,11 +54,15 @@ These were decided early here, and nearly every later feature depended on them. 
 | [src/net/iceServers.ts](src/net/iceServers.ts) + [api/turn.ts](api/turn.ts) | STUN defaults, TURN from a private serverless function, fail-soft | None |
 | [src/net/invite.ts](src/net/invite.ts) | Invite links in the URL fragment, tokens, 5-minute expiry, countdown text | Maybe the TTL |
 | [vite.config.ts](vite.config.ts) `turnApi` plugin, [.vercelignore](.vercelignore), [.env.example](.env.example) | `/api/turn` in dev and preview, tests kept out of the deploy | None |
-| [src/audio/sfx.ts](src/audio/sfx.ts) | Synthesised Web Audio sounds, lazy `AudioContext`, mute | New sound names |
+| [src/audio/](src/audio/) `sfx.ts`, `synth.ts`, `themes.ts` | Synthesised Web Audio sounds in five styles (Classic, Tabla, Bansuri, Sitar, Santoor), master volume and limiter, preview | Rename the sound names to the new game's events (keys in each theme) |
+| [src/components/Sheet.tsx](src/components/Sheet.tsx) | Native `<dialog>` bottom sheet on phones, centred dialog on wider screens, swipe to close | None |
+| [SettingsSheet.tsx](src/components/SettingsSheet.tsx), [GameMenu.tsx](src/components/GameMenu.tsx), [Toolbar.tsx](src/components/Toolbar.tsx) | Settings sheet (switch rows, segmented radios, sound picker, reset), Game menu (restart / set up / end / leave), toolbar button | Setting rows and wording |
+| [src/hooks/useShortcuts.ts](src/hooks/useShortcuts.ts) | Key → handler map, `mod+z` chords, ignores typing and repeats | None |
+| [src/components/DicePool.tsx](src/components/DicePool.tsx) | Banked dice row with selectable dice | None if the game has dice |
 | [src/hooks/useGameClock.ts](src/hooks/useGameClock.ts), [src/hooks/useNow.ts](src/hooks/useNow.ts) | Pausable game clock, ticking "now" for countdowns | None |
 | [src/hooks/useOnline.ts](src/hooks/useOnline.ts) | `useSyncExternalStore` bindings for session objects | None |
 | [src/components/ConfirmDialog.tsx](src/components/ConfirmDialog.tsx), [Icons.tsx](src/components/Icons.tsx), [SeatList.tsx](src/components/SeatList.tsx) | Accessible confirm dialog, inline SVG icons, lobby seat list | Icon set |
-| [src/game/history.ts](src/game/history.ts) | `replay(initial, actions)`, undo index | Undo granularity |
+| [src/game/history.ts](src/game/history.ts) | `replay(initial, actions)`, one-step undo index | None |
 | [src/game/names.ts](src/game/names.ts) | Seat name validation (blank, duplicate) | None |
 | [src/__tests__/setup.ts](src/__tests__/setup.ts), Vitest config | jsdom + Testing Library setup | None |
 | `LICENSE` (GPL-3.0) | Licence text | Copyright line |
@@ -68,7 +74,7 @@ These were decided early here, and nearly every later feature depended on them. 
 | [src/net/protocol.ts](src/net/protocol.ts) | Message envelope (`t`), `hello`/`welcome`/`reject`/`lobby`/`sync`/`action`/`paused`/`ended`, strict parse that rebuilds objects, `sanitizeName`, `PROTOCOL_VERSION` | The `intent` payload (which moves a guest can request) |
 | [src/net/hostSession.ts](src/net/hostSession.ts) | Admission (token, expiry, version, started, full), seat secrets, broadcast with `seq` + `gameId`, hello timeout, bot fill-in | Seat model if the game has no colours |
 | [src/net/guestSession.ts](src/net/guestSession.ts) | Status machine (connecting → lobby → playing → lost/ended), gap detection → resync, seat secret in `sessionStorage` | Nothing much |
-| [src/store/gameStore.ts](src/store/gameStore.ts) | `initial`, `actions`, `redoStack`, derived `game` and `log`, `session` counter for remounts, persisted `settings`, `load()` for online snapshots | The settings fields |
+| [src/store/gameStore.ts](src/store/gameStore.ts) | `initial`, `actions`, `redoStack`, derived `game` and `log`, `session` counter for remounts, settings merged key by key, saved game with version + migrations (resumes paused), last setup, `record` applying one action, `load()` for online snapshots, `abort()` restoring a local save after a guest game | The settings fields and storage keys |
 | [src/store/onlineStore.ts](src/store/onlineStore.ts) | Roles (local/host/guest), inbox for the hook, lazy PeerJS import, subscription that broadcasts new games and pauses | Seat configs |
 | [src/hooks/useLudoGame.ts](src/hooks/useLudoGame.ts) | Busy lock + ref, `later()` timers with cleanup, scheduler effect, `submit`, celebration, notice, auto-pause, intent de-duplication | Animation steps, what counts as "auto" |
 | [src/components/SetupScreen.tsx](src/components/SetupScreen.tsx), [HostLobby.tsx](src/components/HostLobby.tsx), [JoinScreen.tsx](src/components/JoinScreen.tsx), [WinOverlay.tsx](src/components/WinOverlay.tsx) | Flows, validation messages, accessibility | Seat count and options |
@@ -91,7 +97,7 @@ src/
 ├── store/       Zustand: gameStore (action log + derived state + settings), onlineStore (roles, sessions)
 ├── hooks/       useXGame (timing + action pipeline), useGameClock, useNow, useOnline
 ├── components/  Screens (Setup, HostLobby, Join, Game) and pieces (Board, panels, dialogs, icons)
-├── audio/       sfx.ts
+├── audio/       sfx.ts (master chain), themes.ts (sound styles), synth.ts (instruments)
 ├── App.tsx      Chooses the screen from store state
 └── main.tsx
 api/
@@ -119,18 +125,20 @@ interface GameState {
   players: Player[]
   current: number          // whose turn
   phase: 'roll' | 'move' | 'gameOver' /* game-specific */
+  rules: HouseRules        // fixed at creation: anything that changes legality
+  pool: number[]           // unused dice this turn (one die = classic play)
   events: GameEvent[]      // what the LAST action caused (for sounds, log, banners)
   /* game-specific board state */
 }
 
 type GameAction =                      // every action records who acted
   | { type: 'roll'; value: number; actor: PlayerKind }   // randomness stored
-  | { type: 'move'; /* choice */; actor: PlayerKind }
+  | { type: 'move'; /* choice */; die?: number; actor: PlayerKind }
   | { type: 'end'; actor: PlayerKind }                    // end early, rank by progress
   | { type: 'takeover'; seat: SeatId; bot: BotProfile; actor: PlayerKind }
 
 // engine.ts
-createGame(configs, rng = secureRandom): GameState   // bots get random profiles from rng
+createGame(configs, rng = secureRandom, rules): GameState   // bots get random profiles from rng
 applyAction(state, action): GameState                 // pure; returns the same state if the action is illegal
 legalMoves(state): Move[]                             // used by UI highlighting, bots and validation
 ```
@@ -177,7 +185,8 @@ Players of this game now expect these. Tick them off in the next game, adapting 
 - [ ] **Names** validated (not blank, unique, case-insensitive), max 12 characters, sanitised for online.
 - [ ] **Pick colours/positions** when not all seats are used (third pick replaces the oldest).
 - [ ] Last setup **remembered** after a game, to restart quickly.
-- [ ] Game-specific assist options with clear labels (here: **Comeback dice**).
+- [ ] A **House rules** section: game-specific options with clear labels (here: **Comeback dice** and **Roll all your sixes first**). Rules that change legality are stored in `GameState.rules` at creation, never read from settings mid-game.
+- [ ] **Rules** and **Settings** buttons on the setup and join screens too.
 
 ### During play
 - [ ] **Auto roll** switch, on by default, persisted. Never auto-choose a real decision.
@@ -186,18 +195,21 @@ Players of this game now expect these. Tick them off in the next game, adapting 
 - [ ] **Comeback assist** for long droughts: fair dice first, small disclosed boost after a grace period, capped, applies to everyone, switchable.
 - [ ] **Last-move trail**: faint polyline in the mover's colour along the path just taken, ring on the starting square, dark casing so it shows on same-coloured squares. Set on settle from the `move` event; cleared when the next move starts animating and on undo/redo. View-only state in the hook, not game state.
 - [ ] **Whose turn** is obvious: arrow, highlighted panel, live prompt line.
-- [ ] **Undo/redo** (local only): undo returns to the human's last decision, removing bot turns after it.
+- [ ] **Undo/redo** (local only, **off by default** in Settings): one step per undo (the move, then the roll), removing bot turns after it; auto roll/move hold off at an undone position (`heldAt`). Ctrl+Z / Ctrl+Y.
+- [ ] **Banked dice** (if the game has a roll-again rule): a pool of dice, each move names its die, a die row to choose from, **D** to switch, bots plan the order with a beam search.
 - [ ] **Game log**, collapsible, derived from events.
 - [ ] **Pause**, plus **auto-pause** when the tab is hidden or loses focus (local games only; never online).
-- [ ] **Sound** with a mute switch, synthesised (no audio files).
+- [ ] **Sound** synthesised (no audio files): on/off, volume, **sound styles** with sample buttons and "try each sound".
 - [ ] **Game clock** that stops while paused.
-- [ ] **Keyboard shortcuts** for everything (Space roll, 1–4 pick, arrows undo/redo, P pause, L log, N new, S settings), ignored while typing or when a dialog is open.
+- [ ] **Keyboard shortcuts** for everything via `useShortcuts` (Space roll, 1–4 pick, D die, Ctrl+Z/Y undo/redo, P pause, L log, ? rules, S settings, G game menu, N restart), ignored while typing or when a sheet or dialog is open.
+- [ ] **Toolbar sorted by consequence:** Undo/Redo (if on), Pause, Rules, Settings, Game. Preferences live in the **Settings sheet**; restart / set up / end / leave live in the **Game menu**, always confirmed. Opening any sheet pauses a local game; closing resumes only if opening paused it.
+- [ ] **Saved local game**: refresh resumes it, paused. Online games are never saved. An invite link shows the join screen even over a saved game.
 - [ ] **Touch-aware prompts** ("Tap your dice"), keyboard help hidden on touch devices.
 
 ### Finishing
 - [ ] **Celebrate each player who finishes** (banner, confetti, sound), not only the winner.
 - [ ] **Offer to end early** when all humans have finished and only bots remain; unfinished players ranked by progress.
-- [ ] **Win overlay** with full ranking, New game and back to setup.
+- [ ] **Win overlay** with full ranking, Restart and Set up a new game.
 - [ ] **Confirm destructive actions** (abandon game), but not cheap ones.
 
 ### Online
@@ -213,7 +225,7 @@ Players of this game now expect these. Tick them off in the next game, adapting 
 ### Quality
 - [ ] Accessible: native buttons, `role="switch"`, `aria-pressed`, `aria-live`, `role="alert"`, dialogs with focus management, board `aria-label`.
 - [ ] `prefers-reduced-motion` turns off decorative animation.
-- [ ] **Theme**: System (default) / Light / Dark in the footer, CSS custom properties with `prefers-color-scheme` + `data-theme`, inline pre-paint script in `index.html`, game colours unchanged across themes.
+- [ ] **Theme**: System (default) / Light / Dark as a segmented control in Settings, CSS custom properties with `prefers-color-scheme` + `data-theme`, inline pre-paint script in `index.html`, game colours unchanged across themes.
 - [ ] Settings in `localStorage`, every access wrapped in try/catch.
 - [ ] PeerJS loaded only when someone goes online (code splitting).
 - [ ] README with a **"Choices we made"** table explaining every house rule and trade-off.
@@ -292,6 +304,11 @@ Rules learned the hard way:
 | Vercel warned about `VITE_ICE_SERVERS_URL` | `VITE_*` is public by design | Private `TURN_*` variable read by `/api/turn` |
 | `/api/turn` returned 404 after deploy | The function was never committed or pushed | Check `git status` before debugging a deploy |
 | Takeover was invisible to guests | Seat kept the human's name; only the host knew | Rename in the engine, emit an event with both names, show a notice to everyone |
+| "Settings" ended the game | The toolbar mixed preferences, game controls and game-ending actions | Sort controls by what a mis-tap costs: Settings sheet (harmless), Game menu (confirmed) |
+| Tests broke when the house rule defaulted on | They assumed classic dice through the store's defaults | Tests choose their rules explicitly in `beforeEach`; the rule has its own test file |
+| Leaving an online game as a guest would delete the local save | `abort()` always cleared the saved game (Star Hop still does) | A guest's game has no local seats: `abort()` restores the saved local game instead |
+| An invite link over a saved game opened the saved game | Routing put "game exists" first | Show the join screen while joining, even over a saved local game |
+| Auto move would replay an undone move instantly | The scheduler saw a forced move again | Hold auto-play at the undone position (`heldAt`) |
 
 ---
 
@@ -302,12 +319,14 @@ Rules learned the hard way:
 | Auto roll | On | Removes friction; real choices still wait for the player |
 | Theme | System | Respect the device; let players override |
 | Auto move | On | Same, for forced moves; some players want to click every move |
+| Roll all your sixes first | On (house rule) | How the game was played growing up; adds planning. Three sixes still forfeit |
+| Sound style | Tabla | Shared with Star Hop; four other styles one tap away |
 | Comeback assist | On, disclosed, switchable, same for bots | Fair dice feel unfair in long droughts |
 | Auto-pause on hidden tab | Local games only | Pausing an online game would freeze everyone |
-| Undo | Local only, back to your last decision | Rewriting shared history online would confuse others |
+| Undo | Off by default; local only; one step at a time | Undo changes how the game plays; rewriting shared history online would confuse others |
 | Invite expiry | 5 minutes, host-enforced | Long enough to share, short enough to limit reuse |
 | Invite in URL fragment (`#`) | Always | Never sent to servers or logs |
-| Bot strength | One-move lookahead with personas | Fun and varied rather than optimal; measured by simulation |
+| Bot strength | One-move lookahead with personas (two or three with banked dice) | Fun and varied rather than optimal; measured by simulation and a brute-force plan check |
 | Sounds | Synthesised | No files, no licensing |
 | Licence | GPL-3.0-or-later | Free to copy and modify; derivatives must stay open |
 | Hosting | Static site + one optional serverless function on Vercel free tier | No paid infrastructure (a hard constraint) |
@@ -318,9 +337,10 @@ Rules learned the hard way:
 ## 11. What to do differently next time
 
 - **Set up deploys, TURN and a two-device test in week one**, not at the end. Network problems only show up across real networks.
-- **Split the big screen component early.** `GameScreen.tsx` grew large; extract `useShortcuts`, banners and the toolbar from the start.
+- **Split the big screen component early.** `GameScreen.tsx` grew large before `useShortcuts`, `FinishBanner`, `GameLog`, the sheets and the toolbar were extracted. Start with them.
 - **Enable `noUncheckedIndexedAccess`** from the first commit (the 2-player crash was an unchecked lookup).
-- **Persist local games** through the action log (cheap with event sourcing; refreshing currently loses the game).
+- **Design settings and the Game menu up front** instead of growing a toolbar of switches, then reorganising (both games went through this).
+- **Put every rule that affects a game in `GameState.rules`** from the start, including assists like comeback dice.
 - **Playwright two-browser test** with Chromium's WebRTC flags, if CI with network access is available.
 - **Board text alternative** for screen reader users (where are my pieces?), designed in from the start.
 - **Extract a shared "game shell"** (action log store, pipeline hook, network) after the second game proves what is common.

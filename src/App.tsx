@@ -7,21 +7,22 @@ import { useLudoGame } from './hooks/useLudoGame'
 import { parseInvite } from './net/invite'
 import { useGameStore } from './store/gameStore'
 import { useOnlineStore } from './store/onlineStore'
-import { ThemePicker } from './components/ThemePicker'
 
 const PROFILE_URL = 'https://github.com/sachinksha'
 const REPO_URL = `${PROFILE_URL}/ludo-game`
 
 /**
  * Chooses the screen from the stores. A game in progress always wins, keyed by
- * session so a new game remounts all timing state. Otherwise: the join screen
- * for a guest, the lobby for a host, or setup.
+ * session so a new game remounts all timing state (a saved local game comes
+ * back paused after a refresh). Otherwise: the join screen for a guest, the
+ * lobby for a host, or setup.
  */
 export default function App() {
   const game = useGameStore((s) => s.game)
   const session = useGameStore((s) => s.session)
   const start = useGameStore((s) => s.start)
   const lastConfigs = useGameStore((s) => s.lastConfigs)
+  const localGame = useGameStore((s) => s.configs !== null)
   const role = useOnlineStore((s) => s.role)
   const connecting = useOnlineStore((s) => s.connecting)
   const onlineError = useOnlineStore((s) => s.error)
@@ -35,7 +36,9 @@ export default function App() {
   }, [openInvite])
 
   let screen
-  if (game) screen = <LudoSession key={session} />
+  // Opening an invite link shows the join screen even over a saved local game
+  // (which stays saved); a guest's game comes from the host and has no local seats.
+  if (game && !(role === 'guest' && localGame)) screen = <LudoSession key={session} />
   else if (role === 'guest') screen = <JoinScreen />
   else if (role === 'host') screen = <HostLobby />
   else
@@ -57,7 +60,6 @@ export default function App() {
         <span>
           Made by <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer">@sachinksha</a>
         </span>
-        <ThemePicker />
       </footer>
     </>
   )

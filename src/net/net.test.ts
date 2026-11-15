@@ -51,6 +51,8 @@ describe('protocol', () => {
   it('accepts well-formed guest messages and drops everything else', () => {
     expect(parseGuestMessage({ t: 'intent', seq: 3, action: 'move', tokenId: 2 })).toEqual({ t: 'intent', seq: 3, action: 'move', tokenId: 2 })
     expect(parseGuestMessage({ t: 'intent', seq: 3, action: 'move', tokenId: 9 })).toBeNull()
+    expect(parseGuestMessage({ t: 'intent', seq: 3, action: 'move', tokenId: 2, die: 6 })).toEqual({ t: 'intent', seq: 3, action: 'move', tokenId: 2, die: 6 })
+    expect(parseGuestMessage({ t: 'intent', seq: 3, action: 'move', tokenId: 2, die: 7 })).toBeNull()
     expect(parseGuestMessage({ t: 'intent', seq: -1, action: 'roll' })).toBeNull()
     expect(parseGuestMessage({ t: 'hello', v: 1, token: 'x'.repeat(65), name: 'a' })).toBeNull()
     expect(parseGuestMessage({ t: 'cheat', value: 6 })).toBeNull()

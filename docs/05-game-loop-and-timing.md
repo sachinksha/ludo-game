@@ -67,7 +67,7 @@ Given the same initial state and actions, the game is identical. Randomness ente
 
 ## Celebrations and sound
 
-`settle` inspects the events of the last action. A `finish` event (a player done, game not over) shows a banner and holds play for `CELEBRATE_MS`. Sounds come from the same events ([`playOutcomeSounds`](../src/hooks/useLudoGame.ts)), synthesised with the Web Audio API in [sfx.ts](../src/audio/sfx.ts). Events are the bridge from pure rules to effects: the engine says *what happened*, and the shell decides *how it looks and sounds*.
+`settle` inspects the events of the last action. A `finish` event (a player done, game not over) shows a banner and holds play for `CELEBRATE_MS`. Sounds come from the same events ([`playOutcomeSounds`](../src/hooks/useLudoGame.ts)), synthesised with the Web Audio API in [sfx.ts](../src/audio/sfx.ts), in the player's chosen sound style ([themes.ts](../src/audio/themes.ts)). Events are the bridge from pure rules to effects: the engine says *what happened*, and the shell decides *how it looks and sounds*.
 
 ## Feedback that outlives the animation
 

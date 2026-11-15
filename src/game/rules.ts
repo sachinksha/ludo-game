@@ -90,6 +90,7 @@ export function buildMove(
   }
 
   return {
+    die: dice,
     tokenId: token.id,
     from: token.state,
     to,
@@ -110,6 +111,33 @@ export function legalMovesFor(
     if (move) moves.push(move)
   }
   return moves
+}
+
+/**
+ * Every legal move with any die in the pool: grouped by distinct die value in
+ * pool order, then by token. A pool of one die is ordinary Ludo.
+ */
+export function legalMovesForPool(players: Player[], player: Player, pool: number[]): Move[] {
+  return [...new Set(pool)].flatMap((die) => legalMovesFor(players, player, die))
+}
+
+/**
+ * The players after `move`: the token moved, and every opponent on the
+ * landing square (a whole stack) sent back to its base. Pure; used by the
+ * engine and by bots planning several dice ahead.
+ */
+export function playersAfterMove(players: Player[], color: Color, move: Move): Player[] {
+  const hits = move.captured && move.to.kind === 'track' ? opponentsOn(players, color, move.to.pos) : []
+  return players.map((p) => {
+    if (p.color === color) {
+      return { ...p, tokens: p.tokens.map((t) => (t.id === move.tokenId ? { ...t, state: move.to } : t)) }
+    }
+    if (!hits.some((h) => h.color === p.color)) return p
+    return {
+      ...p,
+      tokens: p.tokens.map((t) => (hits.some((h) => h.color === p.color && h.tokenId === t.id) ? { ...t, state: { kind: 'yard' as const } } : t)),
+    }
+  })
 }
 
 /** Lane steps are 0..LANE_LENGTH-1; FINISH_PROGRESS is the centre. */

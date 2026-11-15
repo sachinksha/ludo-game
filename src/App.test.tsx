@@ -1,13 +1,19 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import App from './App'
-import { useGameStore } from './store/gameStore'
+import { DEFAULT_SETTINGS, useGameStore } from './store/gameStore'
 
 beforeEach(() => {
   // The store is a module singleton, so clear any game left by a previous test.
   useGameStore.getState().abort()
   // Setup prefills the previous game's seats; start each test from the defaults.
   useGameStore.setState({ lastConfigs: null })
+  // Rolls by hand, so tests control when things happen.
+  useGameStore.getState().updateSettings({ autoRoll: false })
+})
+
+afterEach(() => {
+  useGameStore.getState().updateSettings({ ...DEFAULT_SETTINGS })
 })
 
 describe('App', () => {
@@ -36,11 +42,46 @@ describe('App', () => {
     expect(screen.queryByRole('region', { name: /\(Blue\)/ })).toBeNull()
   })
 
-  it('returns to setup from settings when no moves have been made', async () => {
+  it('returns to setup from the Game menu when no moves have been made', async () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
-    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
-    expect(screen.getByRole('heading', { name: 'Ludo' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Game' }))
+    const menu = screen.getByRole('dialog', { name: 'Game' })
+    expect(menu).toHaveTextContent('House rules in this game: Roll all your sixes first.')
+    fireEvent.click(within(menu).getByRole('button', { name: /Set up a new game/ }))
+    expect(await screen.findByRole('button', { name: 'Start game' })).toBeInTheDocument()
+  })
+
+  it('asks before restarting a game in progress, then starts it again from the beginning', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+    await screen.findByRole('img', { name: 'Ludo board' })
+    act(() => useGameStore.getState().record({ type: 'roll', value: 3, actor: 'human' }))
+    fireEvent.keyDown(window, { key: 'g' })
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Game' })).getByRole('button', { name: /^Restart/ }))
+    expect(await screen.findByRole('alertdialog', { name: 'Restart this game?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }))
+    await waitFor(() => expect(useGameStore.getState().actions).toHaveLength(0))
+    expect(useGameStore.getState().game).not.toBeNull()
+  })
+
+  it('pauses a local game while Settings is open and resumes when it closes', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    expect(useGameStore.getState().paused).toBe(true)
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Settings' })).getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(useGameStore.getState().paused).toBe(false))
+  })
+
+  it('starts the game with the house rules ticked on setup', () => {
+    render(<App />)
+    const rule = screen.getByRole('checkbox', { name: /Roll all your sixes first/ })
+    expect(rule).toBeChecked()
+    fireEvent.click(rule)
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+    expect(useGameStore.getState().game?.rules).toEqual({ rollSixesFirst: false })
   })
 
   it('shows all four tokens per seat on the board', async () => {
@@ -51,11 +92,13 @@ describe('App', () => {
     })
   })
 
-  it('lists the log newest first and disables undo before any move', async () => {
+  it('hides undo until it is turned on in Settings, and lists the log newest first', async () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
-    const undo = await screen.findByRole('button', { name: /Undo/ })
-    expect(undo).toBeDisabled()
+    await screen.findByRole('img', { name: 'Ludo board' })
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+    act(() => useGameStore.getState().updateSettings({ undo: true }))
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
     // The log is collapsed by default and opens from its toggle.
     const toggle = screen.getByRole('button', { name: /Game log/ })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -67,7 +110,7 @@ describe('App', () => {
     expect(screen.queryByRole('list', { name: /Game log/ })).not.toBeInTheDocument()
   })
 
-  it('supports keyboard shortcuts for pause and settings', async () => {
+  it('supports keyboard shortcuts for pause and Settings', async () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
     await screen.findByRole('img', { name: 'Ludo board' })
@@ -78,7 +121,7 @@ describe('App', () => {
     await waitFor(() => expect(screen.queryByText('Game paused')).not.toBeInTheDocument())
 
     fireEvent.keyDown(window, { key: 's' })
-    expect(await screen.findByRole('button', { name: 'Start game' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
   })
 
   it('shows a game clock and footer links to GitHub', async () => {

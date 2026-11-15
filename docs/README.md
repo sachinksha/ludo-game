@@ -25,6 +25,7 @@ A game is a good teacher. It has rich state, strict rules, time-based UI, AI, an
 | 8 | [Multiplayer system design](08-multiplayer-system-design.md) | Requirements to design, authority models, protocols, consistency, reconnection, security, cost, alternatives |
 | 9 | [Accessibility, performance and UX](09-accessibility-performance-ux.md) | ARIA, keyboard support, reduced motion, code splitting, rendering cost, mobile |
 | 10 | [Interview preparation](10-interview-prep.md) | Question bank with answers tied to this code, system design prompts, "what would you change" |
+| 11 | [Changing requirements: house rules, settings and sheets](11-house-rules-settings-and-sheets.md) | Rules as data in state, generalising one die to a pool, beam-search bots, saved games and migrations, settings information architecture, the native `<dialog>` bottom sheet, sound themes |
 
 ## A suggested two-week plan
 
@@ -32,13 +33,13 @@ A game is a good teacher. It has rich state, strict rules, time-based UI, AI, an
 | --- | --- |
 | 1–2 | Chapters 1 and 2. Draw the dependency graph of `src/` from memory |
 | 3–4 | Chapter 3. Rewrite one component's state handling and explain the difference |
-| 5–6 | Chapter 4. Implement one state exercise (for example, persisting a local game) |
+| 5–6 | Chapter 4. Implement one state exercise (for example, saving the redo stack with the game) |
 | 7 | Chapter 5. Add an animation and keep the tests green |
 | 8 | Chapter 6. Add a bot style and measure it with a simulation |
 | 9 | Chapter 7. Add tests for something untested |
 | 10–11 | Chapter 8. Whiteboard the multiplayer design without notes, then compare with the chapter |
 | 12 | Chapter 9. Audit one screen with a screen reader and the keyboard only |
-| 13–14 | Chapter 10. Mock interviews: answer every question out loud, time-boxed |
+| 13–14 | Chapters 10 and 11. Mock interviews: answer every question out loud, time-boxed. Use chapter 11 for "how did your design cope with change?" |
 
 ## The one idea to remember
 

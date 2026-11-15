@@ -7,13 +7,17 @@ A browser Ludo game built with React, TypeScript, Vite and Zustand. Play on one 
 - **Online play by invite link.** Browser to browser over WebRTC, with no game server to host or pay for. Links stop admitting new players after 5 minutes.
 - **Bots with personalities.** Each bot gets a random playing style every game (hunter, guardian, racer or balanced), so no two games play out the same.
 - **Move trail.** After every move, a faint line in the mover's colour traces the squares it passed, with a ring on the square it left, so you can follow what bots and friends just did. It stays until the next move.
-- **Light and dark themes.** Follows your device by default; pick **System**, **Light** or **Dark** in the footer on any screen.
+- **House rule: roll all your sixes first** (on by default). After a 6 you keep rolling, bank the dice, then use them in the order you choose. Bots plan the order too.
+- **Settings in one sheet:** Auto roll, Auto move, Undo, sound on/off, volume, five **sound styles** (Tabla, Classic, Bansuri, Sitar, Santoor) and the theme. On phones it is a bottom sheet you can swipe down.
+- **Game menu** for **Restart** (same players and rules) and **Set up a new game**, each asking before it discards a game. A **Rules** sheet explains the game in plain words.
+- **Refresh keeps your game.** A local game is saved in the browser and comes back paused.
+- **Light and dark themes.** Follows your device by default; pick **System**, **Light** or **Dark** in Settings.
 - **Auto roll** and **Auto move** (both on by default): your dice roll by themselves, forced moves play themselves, and you step in only when there is a real choice of piece. Turn either off to do it yourself.
 - **Fair dice, with optional comeback help** for a player stuck in base for a long time.
 - **Celebrations** when any player gets all pieces home, not just at the end.
-- **Undo and redo**, **pause and resume**, and automatic pause when you switch away from a local game.
-- **Sound effects** synthesised in the browser (no audio files), with an on/off switch.
-- **Tested.** 185 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
+- **Pause and resume**, automatic pause when you switch away from a local game, and optional **undo and redo** (off by default, one step at a time).
+- **Sound effects** synthesised in the browser (no audio files).
+- **Tested.** 225 tests cover the rules engine, the bots, the stores, the hook timing, the network protocol and the UI, including simulated full games.
 - **Free software** under the GNU GPL v3 (see [Licence](#licence)).
 - **A learning guide** in [`docs/`](docs/README.md) that uses this codebase to teach React, state management, TypeScript, game loops, system design and testing, aimed at senior and principal frontend interviews.
 
@@ -55,24 +59,33 @@ npm run dev        # http://localhost:5173
 2. Choose **2 players** or **4 players**. For 2 players, pick two colours. Opposite corners (red and yellow, or green and blue) are the classic layout, but any two work. Picking a third colour replaces the older pick.
 3. Click a seat to change who plays it: **Human** or **Bot**, plus **Online friend** in online play. At least one seat must be a human on this device.
 4. Optionally name each human seat (up to 12 characters, not blank, all different). Online friends choose their own names.
-5. Leave **Comeback dice** on or turn it off (see [Dice](#dice)), then press **Start game** (or **Create invite link**).
+5. Choose the **house rules**: **Comeback dice** (see [Dice](#dice)) and **Roll all your sixes first** (see [House rules](#house-rules)). Both are on by default. Then press **Start game** (or **Create invite link**).
 6. Each seat has a corner panel with its own dice, and the **arrow** shows whose turn it is. With **Auto roll** on, your dice roll by themselves. With it off, **tap your dice** or press **Space**.
 7. When there is no real choice, your piece moves by itself: only one piece can move, or every piece that can move sits on the same spot. Turn **Auto move** off to make every move yourself. Otherwise, click a highlighted piece or press its number (pieces are numbered 1 to 4 during your turn).
+8. With several dice banked, they show next to the prompt ("Use: ⚅ ⚂"). The highlighted die is the one your next move uses: tap another die (or press **D**) to switch, then pick a piece.
+
+The **Rules** and **Settings** buttons are on the setup and join screens as well as in the game.
 
 ### Toolbar
 
 | Button | What it does |
 | --- | --- |
-| **Undo** / **Redo** | Step back over your last decision (a roll and its move), or forward again. Local games only |
-| **Pause** / **Resume** | Freeze the game. A local game also pauses itself when its tab goes to the background or the window loses focus. Online, only the host can pause, and it pauses for everyone |
-| **Auto roll** switch | Roll automatically on your turn (on by default). You still choose the piece when there is a choice |
-| **Theme** (footer) | System (default), Light or Dark. Remembered on this device |
-| **Auto move** switch | Play your move automatically when there is no real choice (on by default). Off: you click every move, even forced ones |
-| **Sound** switch | Sound effects on or off |
-| **Settings** | Back to the setup screen. Asks before abandoning a game in progress. Online it reads **End online game** (host) or **Leave game** (guest) |
-| **New game** | Same seats, fresh game. Online, the host restarts for everyone in the session |
+| **Undo** / **Redo** | Shown only when turned on in Settings, local games only. Each undo goes back one step: your move first (same roll, choose again), then your roll |
+| **Pause** / **Resume** | Freeze the game. A local game also pauses itself when its tab goes to the background, the window loses focus, or a sheet (Rules, Settings, Game) is open. Online, only the host can pause, and it pauses for everyone |
+| **Rules** | How to play, including which house rules this game uses |
+| **Settings** | Preferences that never end a game (below) |
+| **Game** | **Restart** (same players, seats and house rules) or **Set up a new game** (back to setup, prefilled). Online: the host can restart for everyone or **End the online game**; a guest can **Leave**. Each asks before discarding a game in progress |
 
 The **clock** next to the title shows game time and stops while paused. The **game log** (collapsed by default) lists events newest first.
+
+### Settings
+
+- **Playing:** Auto roll and Auto move (both on by default), Undo and redo (off by default).
+- **Sound:** on or off, volume, and a **sound style**: Tabla (the default), Classic, Bansuri (flute), Sitar or Santoor. Each style has a play button for a sample, and "Try each sound" plays every game sound in the chosen style.
+- **Look:** System, Light or Dark theme.
+- **Reset all settings to defaults** puts everything back, including the house rules for new games.
+
+Settings holds only preferences that cannot lose a game; restarting and leaving live in the Game menu. Everything is remembered in the browser between visits.
 
 ### Keyboard
 
@@ -80,13 +93,16 @@ The **clock** next to the title shows game time and stops while paused. The **ga
 | --- | --- |
 | `Space` | Roll the dice |
 | `1` to `4` | Move that piece |
-| `←` / `→` | Undo / redo |
+| `D` | Switch to the next banked die |
+| `Ctrl+Z` / `Ctrl+Y` (or `Ctrl+Shift+Z`) | Undo / redo, when turned on |
 | `P` | Pause / resume |
 | `L` | Show / hide the game log |
-| `N` | New game |
+| `?` | Rules |
 | `S` | Settings |
+| `G` | Game menu |
+| `N` | Restart (asks first) |
 
-On phones the toolbar shows icons only, panels shrink to one row, and keyboard help is hidden.
+On phones the toolbar shows icons only, panels shrink to one row, sheets slide up from the bottom, and keyboard help is hidden.
 
 ## Online play
 
@@ -155,6 +171,19 @@ The full design, alternatives considered and trade-offs are in [docs/08-multipla
 - When all four pieces reach the centre, that player finishes and is ranked, with a fanfare and a banner. The game ends when one player is left.
 - When every human has finished but two or more bots are still playing, the game offers to **end now**, ranking the remaining bots by how far their pieces have travelled.
 
+### House rules
+
+Chosen on the setup screen, fixed for the whole game, and played by bots too. The Rules sheet and the Game menu show which ones a game uses.
+
+**Roll all your sixes first** (on by default):
+
+- After a 6, roll again **straight away**, before anything moves. Keep going until a roll isn't a 6. The dice are **banked**.
+- Then use the dice **one at a time, in any order, on any pieces**. One die is one move. If any remaining die can move something, you must use one. A die the chosen order leaves unusable is **lost**, so the order is part of the skill.
+- **Three sixes in a row** still forfeit the turn, and every banked die goes with them.
+- Using a 6 earns no extra roll: the bonus rolls already happened.
+- A **capture** or a piece **reaching the centre** earns a roll **straight away**, and that die joins the dice still banked.
+- Getting your **last piece** home ends your turn; leftover dice are lost.
+
 ## Choices we made
 
 Ludo has many house rules and online versions differ. These are the choices this game makes, and why.
@@ -166,6 +195,7 @@ Ludo has many house rules and online versions differ. These are the choices this
 | Stacks | No blocks. Landing on a stack captures all of it | Blocks add complexity many players find confusing. Capturing the whole stack keeps the rule "only safe squares hold mixed colours" true |
 | Extra rolls | Six, capture, and a piece reaching the centre (not your last) | Common online rules. No bonus after your last piece, because your game is over |
 | Three sixes | Forfeit the turn | Classic rule that limits runaway streaks |
+| Roll all your sixes first | House rule, on by default. Three sixes still forfeit (all banked dice are lost). Capture and centre bonuses roll straight away and join the banked dice | How the game was played growing up. Planning the order of several dice adds skill. Keeping the three-sixes limit and the usual bonuses keeps it recognisably Ludo |
 | Exact finish | Required | Classic rule. Overshooting moves are simply not legal |
 | Theme | Follow the system by default; the board and player colours stay the same in dark mode, only the surroundings darken and the board's white squares dim slightly | Keeps the board recognisable and pieces easy to tell apart |
 | Automatic moves | Played for you when every option gives the same result, unless you turn **Auto move** off. Online, each player's own device decides for their seat | Saves clicks without taking away a real decision. Some players like to make every move themselves |
@@ -173,7 +203,9 @@ Ludo has many house rules and online versions differ. These are the choices this
 | Comeback dice | On by default, same help for humans and bots | Long dry spells are normal with fair dice and frustrating. Easy to turn off |
 | Bots | Random style each game, small random nudges | Varied, human-feeling opponents without being dumb. See [Bots](#bots) |
 | Ending early | Offered when every human is done; remaining bots ranked by total progress | Nobody wants to watch bots finish |
-| Undo | Rewinds to your last roll, removing any bot turns after it. Local only | Undo returns you to a decision, not a single click. Online, rewriting shared history would surprise the other players |
+| Undo | Off by default (a setting). One step at a time: your move, then your roll, removing bot turns after it. Local only | Undo changes how the game plays (you could fish for a better roll), so it is opt-in. Online, rewriting shared history would surprise the other players |
+| Settings vs Game menu | Preferences in Settings; restart and leave in the Game menu | Sorted by what a mis-tap costs: nothing in Settings can lose a game |
+| Saved games | Local games are saved after every move and resume paused. Online games are never saved | A refresh should never cost a game. Online, the host's tab owns the game and a refresh cannot bring guests back |
 | Auto pause | Local games only | Online, one player switching tabs would freeze everyone |
 | Online authority | Host browser decides everything, including dice | Prevents cheating without a server. The cost: the host must keep the tab open |
 | Invite links | 5 minutes, host-enforced, no accounts | Enough time to share a link, short enough that old links cannot be reused |
@@ -184,7 +216,7 @@ Dice use the browser's cryptographic random generator (`crypto.getRandomValues`)
 
 **Comeback dice** (setup option, on by default) softens this. After a player has been stuck in base (no piece on the board) for 3 rolls without a six, their chance of a six rises by 6 percentage points per further roll, from 1 in 6 up to at most 1 in 2. It resets as soon as they roll a six or have a piece out, and it applies to bots and humans alike. Turn it off for strictly fair dice.
 
-Settings (auto roll, comeback dice) are saved in the browser's `localStorage`.
+Settings are saved in the browser's `localStorage`.
 
 ## Bots
 
@@ -210,7 +242,7 @@ src/
 │   ├── rules.ts           Destinations, captures, legal moves, path steps
 │   ├── engine.ts          State machine: createGame, rollWithValue, performMove, endGame, takeover
 │   ├── history.ts         Replay of the action list, and where undo rewinds to
-│   ├── bot.ts             Bot styles and move scoring
+│   ├── bot.ts             Bot styles, move scoring, and planning the order of banked dice
 │   ├── names.ts           Seat name validation
 │   └── describe.ts        Log text for each event
 ├── net/                   Online play. No React.
@@ -223,16 +255,19 @@ src/
 │   ├── guestSession.ts    Connecting, intents, receiving actions
 │   └── invite.ts          Invite links and tokens
 ├── store/
-│   ├── gameStore.ts       Zustand: configs, action history, redo stack, pause, settings
+│   ├── gameStore.ts       Zustand: configs, action history, redo stack, pause, settings, saved game
 │   └── onlineStore.ts     Zustand: role, live session, inbox; wires sessions to the game store
 ├── hooks/
 │   ├── useLudoGame.ts     Timing and turn flow for local, host and guest
 │   ├── useOnline.ts       Session views via useSyncExternalStore
+│   ├── useShortcuts.ts    Keyboard shortcuts as a key → handler map
 │   ├── useGameClock.ts    The game clock
 │   └── useNow.ts          A ticking clock for countdowns
 ├── components/            Screens and UI: Setup, HostLobby, JoinScreen, GameScreen, Board,
-│                          PlayerPanel, Dice, WinOverlay, ConfirmDialog, SeatList, Icons
-├── audio/sfx.ts           Web Audio sound effects, with mute
+│                          PlayerPanel, Dice, DicePool, WinOverlay, ConfirmDialog, SeatList, Icons,
+│                          Sheet (native <dialog> bottom sheet), SettingsSheet, RulesSheet, GameMenu
+├── audio/                 Web Audio sound: sfx.ts (master volume and limiter), themes.ts (five
+│                          sound styles), synth.ts (plucked strings, tabla strokes, flute)
 ├── App.tsx                Chooses setup, lobby, join or game from the stores
 └── main.tsx               Entry point
 
@@ -258,14 +293,16 @@ The [learning guide](docs/README.md) explains each of these in depth.
 npm test
 ```
 
-185 tests across:
+225 tests across:
 
 - **Engine:** dice mapping, comeback odds, creation and names, lane entry and exact finish, captures (including stacks) and safe squares, extra rolls, automatic moves, the three-sixes forfeit, passes, finishing, ending early and bot takeover.
 - **Bots:** every style still captures and finishes, guardians run from threats, racers push leaders, and close calls vary.
 - **Full games:** seeded bot-only games for two and four players, with invariants checked after every action.
 - **Network:** protocol validation, invite links, joining, expiry, wrong tokens, full games, leaving, reconnecting with a seat secret, ordered actions, pause, new games, takeover and ending, all over an in-memory network.
-- **Stores and hooks:** undo, redo, settings, forced moves, auto roll, celebrations, the end-early offer, auto pause, and the hook in host and guest roles.
-- **UI:** setup choices (including colours and online rules), the app flow, 2-player games, the log, the win overlay and the dialogs.
+- **House rules:** banking sixes, three sixes losing every banked die, any-order dice, lost leftovers, bonus rolls joining the bank, finishing mid-pool, replays, and a brute-force check that bots start an optimal two-dice plan.
+- **Stores and hooks:** one-step undo and redo, settings (defaults, saving, bad values), saved games (resume paused, rejected saves, online games never saved), forced moves, auto roll, choosing a die, holding auto-play after undo, celebrations, the end-early offer, auto pause, and the hook in host and guest roles.
+- **Sound:** every theme's sounds scheduled against a strict fake audio context.
+- **UI:** setup choices (colours, online rules, house rules), the app flow, the Game menu and its confirmations, Settings pausing the game, the bottom sheet, the rules text, 2-player games, the log and the win overlay.
 
 The network tests use an in-memory transport. Real WebRTC between two browsers has to be tested by hand: open the invite on a second device, or in a second browser.
 
@@ -284,9 +321,9 @@ Any modern browser. Online play needs WebRTC data channels, which every current 
 - **Mobile data needs a TURN relay.** Without one configured, players on different networks (especially mobile data) often cannot connect. See [Connecting across networks](#connecting-across-networks).
 - **Some networks block WebRTC.** Strict corporate or school firewalls may stop connections even with a relay. A relay on port 443 over TLS (`turns:`) gets through most of them.
 - **No spectators and no late joining.** Once a game starts, only players reclaiming their own seat can connect.
-- **Bots look one move ahead** rather than searching, so they are reasonable rather than strong.
+- **Bots look one move ahead** (two or three with banked dice) rather than searching, so they are reasonable rather than strong.
 - **Pausing takes effect after the current animation.**
-- **Local games live in memory.** Refreshing the page starts over.
+- **One saved game.** The browser keeps one local game; starting another replaces it.
 
 ## Learning guide
 

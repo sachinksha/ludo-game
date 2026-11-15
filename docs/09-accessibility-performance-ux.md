@@ -21,7 +21,7 @@
 
 **Motion.** `@media (prefers-reduced-motion: reduce)` turns off decorative animation (confetti, halos, banner pop).
 
-**Dark mode.** Colours are CSS custom properties (`--bg`, `--surface`, `--text`, ...) defined once on `:root` and redefined for dark. The dark values apply under `@media (prefers-color-scheme: dark)` unless `<html data-theme="light">` is set, and always under `data-theme="dark"`. So "System" is simply *no attribute*, and the stylesheet does the rest ([theme.ts](../src/theme.ts), [ThemePicker.tsx](../src/components/ThemePicker.tsx)). Details worth mentioning in interviews:
+**Dark mode.** Colours are CSS custom properties (`--bg`, `--surface`, `--text`, ...) defined once on `:root` and redefined for dark. The dark values apply under `@media (prefers-color-scheme: dark)` unless `<html data-theme="light">` is set, and always under `data-theme="dark"`. So "System" is simply *no attribute*, and the stylesheet does the rest ([theme.ts](../src/theme.ts); the control is a segmented set of native radios in [SettingsSheet.tsx](../src/components/SettingsSheet.tsx)). Details worth mentioning in interviews:
 - **No flash of the wrong theme.** React renders after the CSS loads, so a stored "Dark" applied from React would flash light first. A five-line inline script in `index.html` reads the setting and sets `data-theme` before first paint.
 - **`color-scheme`** is set per theme so native controls, scrollbars and checkboxes match.
 - **Theme only the surroundings.** Player colours and dice are identical in both themes; the board's white squares dim slightly. Game pieces must stay recognisable.
@@ -36,7 +36,7 @@
 
 **Derivation cost.** Replaying the action log on every action is O(n) with n in the hundreds, negligible. Snapshots would fix it if n grew ([chapter 4](04-state-management.md)).
 
-**No assets.** Sounds are synthesised with the Web Audio API ([sfx.ts](../src/audio/sfx.ts)), so there are no audio files to download or license. The `AudioContext` is created lazily on first use because browsers block audio before a user gesture.
+**No assets.** Sounds are synthesised with the Web Audio API ([sfx.ts](../src/audio/sfx.ts), five styles in [themes.ts](../src/audio/themes.ts)), so there are no audio files to download or license. The `AudioContext` is created lazily on first use because browsers block audio before a user gesture.
 
 **Timers.** Effects clean up their timers, so unmounting or pausing leaves nothing running.
 

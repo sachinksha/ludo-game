@@ -1,135 +1,34 @@
-import { useEffect, useRef, useState } from 'react'
-import { isMuted, setMuted } from '../audio/sfx'
+import { useRef, useState } from 'react'
+import { HOUSE_RULE_KEYS, type Color } from '../game/types'
 import { formatClock, useGameClock } from '../hooks/useGameClock'
 import type { LudoController } from '../hooks/useLudoGame'
 import { useGuestView, useHostView } from '../hooks/useOnline'
+import { IS_TOUCH, useShortcuts } from '../hooks/useShortcuts'
 import { useGameStore } from '../store/gameStore'
 import { useOnlineStore } from '../store/onlineStore'
-import { COLOR_HEX, COLOR_NAME } from './colors'
-import { ConfirmDialog } from './ConfirmDialog'
-import { Icon, type IconName } from './Icons'
-import { PlayerPanel } from './PlayerPanel'
 import { Board } from './Board'
+import { COLOR_HEX } from './colors'
+import { ConfirmDialog } from './ConfirmDialog'
+import { DicePool } from './DicePool'
+import { FinishBanner } from './FinishBanner'
+import { GameLog, KeyboardHelp } from './GameLog'
+import { GameMenu } from './GameMenu'
+import { HOUSE_RULE_TEXT } from './houseRuleText'
+import { Icon } from './Icons'
+import { PlayerPanel } from './PlayerPanel'
+import { RulesSheet } from './RulesSheet'
+import { SettingsSheet } from './SettingsSheet'
+import { ToolButton } from './Toolbar'
 import { WinOverlay } from './WinOverlay'
-import type { Color } from '../game/types'
 
 interface GameScreenProps {
   ludo: LudoController
 }
 
-type PendingAction = 'settings' | 'new' | null
-
-/** Toolbar button with a logo and a text label. */
-function ToolButton({ icon, label, onClick, disabled, pressed, shortcut, shortcutLabel }: { icon: IconName; label: string; onClick: () => void; disabled?: boolean; pressed?: boolean; shortcut?: string; shortcutLabel?: string }) {
-  return (
-    <button
-      type="button"
-      className="tool"
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={pressed}
-      aria-keyshortcuts={shortcut}
-      title={shortcutLabel ? `${label} (${shortcutLabel})` : label}
-    >
-      <Icon name={icon} />
-      <span className="tool-label">{label}</span>
-    </button>
-  )
-}
-
-/** A labelled on/off switch with a logo, styled like the toolbar buttons. */
-function ToggleSwitch({ icon, label, on, onChange, title }: { icon: IconName; label: string; on: boolean; onChange: (on: boolean) => void; title?: string }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} className="tool tool-switch" title={title} onClick={() => onChange(!on)}>
-      <Icon name={icon} />
-      <span className="tool-label">{label}</span>
-      <span className={`switch-track${on ? ' switch-on' : ''}`} aria-hidden="true">
-        <span className="switch-knob" />
-      </span>
-    </button>
-  )
-}
-
-/** Sound on/off. Mute state lives in the audio module. */
-function SoundSwitch() {
-  const [muted, setMutedState] = useState(isMuted())
-  return (
-    <ToggleSwitch
-      icon="speaker"
-      label="Sound"
-      on={!muted}
-      onChange={(on) => {
-        setMuted(!on)
-        setMutedState(!on)
-      }}
-    />
-  )
-}
-
-/** Auto roll on/off, saved with the other settings. */
-function AutoRollSwitch() {
-  const autoRoll = useGameStore((s) => s.settings.autoRoll)
-  const updateSettings = useGameStore((s) => s.updateSettings)
-  return (
-    <ToggleSwitch
-      icon="dice"
-      label="Auto roll"
-      on={autoRoll}
-      onChange={(on) => updateSettings({ autoRoll: on })}
-      title="Roll the dice automatically on your turn. You still choose which piece to move."
-    />
-  )
-}
-
-function AutoMoveSwitch() {
-  const autoMove = useGameStore((s) => s.settings.autoMove)
-  const updateSettings = useGameStore((s) => s.updateSettings)
-  return (
-    <ToggleSwitch
-      icon="forward"
-      label="Auto move"
-      on={autoMove}
-      onChange={(on) => updateSettings({ autoMove: on })}
-      title="Move your piece automatically when there is no real choice: only one piece can move, or all movable pieces share a square."
-    />
-  )
-}
-
-const RANK_WORD = ['', '1st', '2nd', '3rd', '4th']
-
-/** Banner over the board when a player gets all four pieces home. */
-function FinishBanner({ name, color, rank }: { name: string; color: Color; rank: number }) {
-  const who = name === 'You' ? 'You finished' : `${name} finished`
-  return (
-    <div className={`finish-banner finish-${color}`} role="status">
-      <div className="confetti confetti-burst" aria-hidden="true">
-        {BURST.map((p) => (
-          <span
-            key={p.id}
-            className="confetti-piece confetti-burst-piece"
-            style={{ left: `${p.left}%`, background: COLOR_HEX[color], animationDelay: `${p.delay}s`, ['--drift' as string]: `${p.drift}px` }}
-          />
-        ))}
-      </div>
-      <p className="finish-text">
-        <span className="finish-rank">{RANK_WORD[rank] ?? `#${rank}`}</span>
-        {who}!
-      </p>
-    </div>
-  )
-}
-
-/** Fixed confetti layout for the finish banner, so renders stay pure. */
-const BURST = Array.from({ length: 28 }, (_, i) => {
-  const unit = (seed: number) => {
-    const x = Math.sin(seed * 12.9898) * 43758.5453
-    return x - Math.floor(x)
-  }
-  return { id: i, left: unit(i + 7) * 100, delay: unit(i + 77) * 0.5, drift: (unit(i + 177) - 0.5) * 80 }
-})
-
-/** True on touch-only devices, where keyboard hints make no sense. */
-const IS_TOUCH = typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches === true
+/** A confirmation waiting on screen: leave for setup, or restart. */
+type PendingAction = 'setup' | 'restart' | null
+/** The sheet open over the game, if any. */
+type OpenSheet = 'rules' | 'settings' | 'game' | null
 
 /** "Your turn." for a default name, otherwise addresses the player by name. */
 function turnOf(name: string): string {
@@ -137,144 +36,143 @@ function turnOf(name: string): string {
 }
 
 export function GameScreen({ ludo }: GameScreenProps) {
-  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, autoRoll, celebration, notice, lastMove, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, pickToken, undo, redo, togglePause } = ludo
+  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, autoRoll, pool, selectedDie, usableDice, selectDie, pickable, celebration, notice, lastMove, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, pickToken, undo, redo, togglePause } = ludo
   const leaveOnline = useOnlineStore((s) => s.leave)
   const reconnect = useOnlineStore((s) => s.reconnect)
   const hostView = useHostView()
   const guestView = useGuestView()
   const online = role !== 'local'
   const isGuest = role === 'guest'
-  const log = useGameStore((s) => s.log)
   const actions = useGameStore((s) => s.actions)
+  const latestLog = useGameStore((s) => s.log.at(-1)?.text ?? '')
   const start = useGameStore((s) => s.start)
   const abort = useGameStore((s) => s.abort)
   const configs = useGameStore((s) => s.configs)
   const logOpen = useGameStore((s) => s.logOpen)
   const setLogOpen = useGameStore((s) => s.setLogOpen)
+  const undoOn = useGameStore((s) => s.settings.undo) && !online
 
   const [pending, setPending] = useState<PendingAction>(null)
-  const logRef = useRef<HTMLOListElement>(null)
+  const [sheet, setSheet] = useState<OpenSheet>(null)
+  /** True when opening a sheet paused the game, so closing it resumes it. */
+  const pausedForSheet = useRef(false)
 
   const gameOver = game.phase === 'gameOver'
   const inProgress = !gameOver && actions.length > 0
   const current = game.players[game.currentIndex]
   const elapsed = useGameClock(!paused && !gameOver)
-  const toggleLog = () => setLogOpen(!logOpen)
-
-  // Newest first, so the list starts at the top and scrolls back to it on each new entry.
-  const newestFirst = [...log].reverse()
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = 0
-  }, [log.length, logOpen])
-
-  const clickable =
-    humanTurn && game.phase === 'move' && !busy && !paused
-      ? game.legalMoves.map((m) => ({ color: current.color, tokenId: m.tokenId }))
-      : []
-
   const canRoll = humanTurn && game.phase === 'roll' && !busy && !paused
+  const canPick = humanTurn && game.phase === 'move' && !busy && !paused
+  const clickable = canPick ? pickable.map((tokenId) => ({ color: current.color, tokenId })) : []
+  /** Still rolling with sixes banked (roll sixes first). */
+  const banking = game.phase === 'roll' && pool.length > 0
+  /** "Dice 6, 3: using the 6." with several dice, otherwise nothing extra. */
+  const diceText = pool.length > 1 && selectedDie !== null ? `Dice ${pool.join(', ')}: using the ${selectedDie}. ` : ''
 
-  // Online, leaving setup ends the session (host) or leaves it (guest).
-  const doSettings = () => (online ? leaveOnline() : abort())
-  const doNew = () => {
+  // Online, leaving ends the session (host) or leaves it (guest). Locally, back to setup.
+  const doSetup = () => (online ? leaveOnline() : abort())
+  /** Restart: same players, seats and house rules, from the beginning. */
+  const doRestart = () => {
     if (isGuest) return
-    // Hosts start from the session's current seats (a seat a bot took over stays a bot).
+    // Hosts restart from the session's current seats (a seat a bot took over stays a bot).
     if (role === 'host') useOnlineStore.getState().startHostedGame()
     else if (configs) start(configs)
   }
-  const requestSettings = () => (inProgress || (online && !gameOver) ? setPending('settings') : doSettings())
-  const requestNew = () => {
+  const requestSetup = () => (inProgress || (online && !gameOver) ? setPending('setup') : doSetup())
+  const requestRestart = () => {
     if (isGuest) return
-    if (inProgress) setPending('new')
-    else doNew()
+    if (inProgress) setPending('restart')
+    else doRestart()
+  }
+  const confirmPending = () => {
+    if (pending === 'setup') doSetup()
+    if (pending === 'restart') doRestart()
+    setPending(null)
+  }
+
+  // Reading the rules or changing settings mid-game shouldn't cost a turn: a
+  // local game pauses while a sheet is open. Online games never pause for one player.
+  const openSheet = (which: Exclude<OpenSheet, null>) => {
+    if (role === 'local' && !paused && !gameOver) {
+      pausedForSheet.current = true
+      togglePause()
+    }
+    setSheet(which)
+  }
+  const closeSheet = () => {
+    setSheet(null)
+    if (pausedForSheet.current) {
+      pausedForSheet.current = false
+      if (useGameStore.getState().paused) togglePause()
+    }
+  }
+  /** From the Game menu: close it, then ask before ending or restarting the game. */
+  const fromMenu = (action: () => void) => () => {
+    closeSheet()
+    action()
   }
 
   // Host: online players who dropped out of a game still in progress.
   const leftSeats = !gameOver && hostView
     ? hostView.seats.filter((s) => s.remote && s.joined && !s.connected && game.players.some((p) => p.color === s.color && p.remote && p.finishRank === null))
     : []
-  const confirmPending = () => {
-    if (pending === 'settings') doSettings()
-    if (pending === 'new') doNew()
-    setPending(null)
-  }
 
-  // Keyboard shortcuts. Ignored while typing, with modifier keys held, or while
-  // the confirm dialog is open (it handles its own keys).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return
-      const target = e.target as HTMLElement | null
-      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return
-      if (pending || offerEnd) return
-
-      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
-      // Holding a key down should not flip pause or reopen dialogs repeatedly.
-      if (e.repeat && key !== 'ArrowLeft' && key !== 'ArrowRight') return
-      // With the win overlay up, only new game and settings make sense.
-      if (gameOver && key !== 'n' && key !== 's') return
-
-      switch (key) {
-        case ' ':
-          // Stop Space from also clicking whichever button has focus.
-          e.preventDefault()
-          if (canRoll) roll()
-          return
-        case '1':
-        case '2':
-        case '3':
-        case '4': {
-          const tokenId = Number(key) - 1
-          if (clickable.some((c) => c.tokenId === tokenId)) {
-            e.preventDefault()
-            pickToken(tokenId)
+  useShortcuts(
+    {
+      ' ': () => {
+        if (canRoll) roll()
+      },
+      ...Object.fromEntries(
+        [1, 2, 3, 4].map((n) => [
+          String(n),
+          () => {
+            if (!pickable.includes(n - 1) || !canPick) return false
+            pickToken(n - 1)
+          },
+        ]),
+      ),
+      // Switch to the next die that can move something.
+      d: () => {
+        if (!canPick || usableDice.length < 2) return false
+        selectDie(usableDice[(usableDice.indexOf(selectedDie ?? usableDice[0]) + 1) % usableDice.length])
+      },
+      ...(undoOn
+        ? {
+            'mod+z': () => (canUndo ? void undo() : false),
+            'mod+y': () => (canRedo ? void redo() : false),
+            'mod+shift+z': () => (canRedo ? void redo() : false),
           }
-          return
-        }
-        case 'ArrowLeft':
-          if (canUndo) {
-            e.preventDefault()
-            undo()
-          }
-          return
-        case 'ArrowRight':
-          if (canRedo) {
-            e.preventDefault()
-            redo()
-          }
-          return
-        case 'p':
-          e.preventDefault()
-          togglePause()
-          return
-        case 'n':
-          e.preventDefault()
-          requestNew()
-          return
-        case 's':
-          e.preventDefault()
-          requestSettings()
-          return
-        case 'l':
-          e.preventDefault()
-          toggleLog()
-          return
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
+        : {}),
+      p: () => {
+        if (canPause) togglePause()
+      },
+      l: () => setLogOpen(!logOpen),
+      '?': () => openSheet('rules'),
+      s: () => openSheet('settings'),
+      g: () => openSheet('game'),
+      n: requestRestart,
+    },
+    !pending && !offerEnd && !gameOver && !sheet,
+  )
+  // With the win overlay up, only restart and back to setup make sense.
+  useShortcuts({ n: doRestart, s: doSetup }, gameOver && !busy && !sheet)
 
+  const lost = game.events.find((e) => e.type === 'turnPass' && e.unused)
   let prompt: string
   if (gameOver) prompt = 'Game over'
   else if (paused && isGuest) prompt = 'The host paused the game.'
   else if (paused) prompt = IS_TOUCH ? 'Paused. Tap Resume to keep playing.' : 'Paused. Press P or Resume to keep playing.'
   else if (busy) prompt = 'Moving...'
   else if (celebration) prompt = celebration.name === 'You' ? 'You got all your pieces home!' : `${celebration.name} got all their pieces home!`
-  else if (!humanTurn) prompt = `${current.name} is playing...`
-  else if (game.phase === 'roll' && autoRoll) prompt = current.name === 'You' ? 'Your turn. Rolling...' : `${current.name}, your turn. Rolling...`
+  else if (lost?.type === 'turnPass' && game.phase === 'roll' && lost.reason === 'noMoves') {
+    const who = game.players.find((p) => p.color === lost.color)!
+    prompt = `${who.name === 'You' ? 'You' : who.name} couldn't use the ${lost.unused!.join(', ')}. ${humanTurn ? turnOf(current.name) : `${current.name} is playing...`}`
+  } else if (!humanTurn) prompt = `${current.name} is playing...`
+  else if (banking) prompt = `${turnOf(current.name)} Banked ${pool.join(', ')}: roll again before moving${autoRoll ? '...' : '.'}`
+  else if (game.phase === 'roll' && autoRoll) prompt = `${turnOf(current.name)} Rolling...`
   else if (game.phase === 'roll') prompt = `${turnOf(current.name)} ${IS_TOUCH ? 'Tap your dice to roll.' : 'Press Space or tap your dice to roll.'}`
-  else prompt = IS_TOUCH ? 'Tap a highlighted piece to move it.' : 'Choose a highlighted piece: press its number or click it.'
+  else if (IS_TOUCH) prompt = `${diceText}Tap a highlighted piece to move it.${usableDice.length > 1 ? ' Tap a die to switch.' : ''}`
+  else prompt = `${diceText}Choose a highlighted piece: press its number or click it.${usableDice.length > 1 ? ' D switches die.' : ''}`
 
   // Only seated colours get a panel: a two-player game has no green or blue seat.
   const panel = (color: Color) => {
@@ -306,32 +204,29 @@ export function GameScreen({ ludo }: GameScreenProps) {
           </span>
         </div>
         <div className="toolbar-actions">
-          {!online && <ToolButton icon="undo" label="Undo" onClick={undo} disabled={!canUndo} shortcut="ArrowLeft" shortcutLabel="←" />}
-          {!online && <ToolButton icon="redo" label="Redo" onClick={redo} disabled={!canRedo} shortcut="ArrowRight" shortcutLabel="→" />}
-          {canPause && <ToolButton
-            icon={paused ? 'play' : 'pause'}
-            label={paused ? 'Resume' : 'Pause'}
-            onClick={togglePause}
-            disabled={gameOver}
-            pressed={paused}
-            shortcut="P"
-            shortcutLabel="P"
-          />}
-          <AutoRollSwitch />
-          <AutoMoveSwitch />
-          <SoundSwitch />
-          <ToolButton
-            icon="gear"
-            label={role === 'host' ? 'End online game' : isGuest ? 'Leave game' : 'Settings'}
-            onClick={requestSettings}
-            shortcut="S"
-            shortcutLabel="S"
-          />
-          {!isGuest && <ToolButton icon="restart" label="New game" onClick={requestNew} shortcut="N" shortcutLabel="N" />}
+          {undoOn && <ToolButton icon="undo" label="Undo" onClick={undo} disabled={!canUndo} shortcut="Control+Z" shortcutLabel="Ctrl+Z" />}
+          {undoOn && <ToolButton icon="redo" label="Redo" onClick={redo} disabled={!canRedo} shortcut="Control+Y" shortcutLabel="Ctrl+Y" />}
+          {canPause && (
+            <ToolButton icon={paused ? 'play' : 'pause'} label={paused ? 'Resume' : 'Pause'} onClick={togglePause} disabled={gameOver} pressed={paused} shortcut="P" shortcutLabel="P" />
+          )}
+          <ToolButton icon="book" label="Rules" onClick={() => openSheet('rules')} shortcut="?" shortcutLabel="?" />
+          <ToolButton icon="gear" label="Settings" onClick={() => openSheet('settings')} shortcut="S" shortcutLabel="S" />
+          <ToolButton icon="flag" label="Game" onClick={() => openSheet('game')} shortcut="G" shortcutLabel="G" />
         </div>
       </header>
 
-      <p className="prompt" aria-live="polite">{prompt}</p>
+      <div className="turn-bar" style={{ ['--arm' as string]: COLOR_HEX[current.color] }}>
+        <p className="prompt" aria-live="polite">{prompt}</p>
+        <DicePool
+          pool={pool}
+          banking={banking}
+          selectedDie={selectedDie}
+          usable={(d) => usableDice.includes(d)}
+          interactive={canPick}
+          keyHint={!IS_TOUCH}
+          onSelect={selectDie}
+        />
+      </div>
 
       {isGuest && guestView?.status === 'lost' && (
         <div className="net-banner" role="alert">
@@ -368,7 +263,7 @@ export function GameScreen({ ludo }: GameScreenProps) {
             lastMove={lastMove}
           />
           {celebration && <FinishBanner key={celebration.color} {...celebration} />}
-          {paused && (
+          {paused && !sheet && (
             <div className="pause-veil" role="status">
               <p>{isGuest ? 'The host paused the game' : 'Game paused'}</p>
               {canPause && (
@@ -381,65 +276,56 @@ export function GameScreen({ ludo }: GameScreenProps) {
         </div>
 
         <aside className="side-panel">
-          <section className="log-panel">
-            <h2>
-              <button
-                type="button"
-                className="log-toggle"
-                aria-expanded={logOpen}
-                aria-controls="game-log"
-                aria-keyshortcuts="L"
-                onClick={toggleLog}
-              >
-                <span className={`chevron${logOpen ? ' chevron-open' : ''}`} aria-hidden="true" />
-                Game log
-                <span className="log-count">{log.length}</span>
-              </button>
-            </h2>
-            {logOpen && (
-              <ol id="game-log" className="log" ref={logRef} aria-label="Game log, latest first">
-                {newestFirst.length === 0 && <li className="log-empty">No moves yet.</li>}
-                {newestFirst.map((entry) => (
-                  <li key={entry.id}>{entry.text}</li>
-                ))}
-              </ol>
-            )}
-          </section>
-          <section className="log-panel keys-panel">
-            <h2>Keyboard</h2>
-            <dl className="shortcuts">
-              <dt><kbd>Space</kbd></dt><dd>Roll the dice</dd>
-              <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Move that piece</dd>
-              <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Undo / redo</dd>
-              <dt><kbd>P</kbd></dt><dd>Pause / resume</dd>
-              <dt><kbd>L</kbd></dt><dd>Show / hide game log</dd>
-              <dt><kbd>N</kbd></dt><dd>New game</dd>
-              <dt><kbd>S</kbd></dt><dd>Settings</dd>
-            </dl>
-          </section>
+          <GameLog />
+          <KeyboardHelp undo={undoOn} />
         </aside>
       </div>
 
+      {/* Reads out each new log line (captures, bot moves) for screen reader users. */}
+      <p className="sr-only" aria-live="polite" data-testid="announcer">{latestLog}</p>
+
+      <RulesSheet open={sheet === 'rules'} onClose={closeSheet} />
+      <SettingsSheet open={sheet === 'settings'} onClose={closeSheet} />
+      <GameMenu
+        open={sheet === 'game'}
+        onClose={closeSheet}
+        role={role}
+        canRestart={configs !== null || role === 'host'}
+        rulesText={HOUSE_RULE_KEYS.filter((k) => game.rules?.[k]).map((k) => HOUSE_RULE_TEXT[k].title).join(', ') || 'none'}
+        onRestart={fromMenu(requestRestart)}
+        onLeave={fromMenu(requestSetup)}
+      />
+
       {pending && (
         <ConfirmDialog
-          title={role === 'host' && pending === 'settings' ? 'End the online game?' : isGuest ? 'Leave this game?' : 'Abort the current game?'}
+          title={
+            role === 'host' && pending === 'setup'
+              ? 'End the online game?'
+              : isGuest
+                ? 'Leave this game?'
+                : pending === 'restart'
+                  ? 'Restart this game?'
+                  : 'Leave this game for setup?'
+          }
           message={
-            role === 'host' && pending === 'settings'
+            role === 'host' && pending === 'setup'
               ? 'This ends the game for everyone and closes the invite link.'
               : isGuest
                 ? 'You will leave the game. The host can let a bot take your seat.'
-                : role === 'host'
-                  ? 'This game is still in progress. A new game starts for everyone with the same seats.'
-                  : 'This game is still in progress. Aborting discards it, and it cannot be recovered.'
+                : pending === 'restart'
+                  ? role === 'host'
+                    ? 'The game starts again from the beginning for everyone, with the same seats and house rules.'
+                    : 'The game starts again from the beginning, with the same players and house rules. This game is discarded.'
+                  : 'This game is still in progress and will be discarded. Setup opens with the same players, ready to change.'
           }
           confirmLabel={
-            role === 'host' && pending === 'settings'
+            role === 'host' && pending === 'setup'
               ? 'End for everyone'
               : isGuest
                 ? 'Leave'
-                : pending === 'settings'
-                  ? 'Abort and open settings'
-                  : 'Abort and start new'
+                : pending === 'setup'
+                  ? 'Discard and set up'
+                  : 'Restart'
           }
           cancelLabel="Keep playing"
           onConfirm={confirmPending}
@@ -465,14 +351,12 @@ export function GameScreen({ ludo }: GameScreenProps) {
           winners={game.winners}
           time={formatClock(elapsed)}
           names={Object.fromEntries(game.players.map((p) => [p.color, p.name]))}
-          onNewGame={isGuest ? undefined : doNew}
-          onSetup={doSettings}
-          setupLabel={role === 'host' ? 'End online game' : isGuest ? 'Leave' : undefined}
+          onNewGame={isGuest || (!configs && role !== 'host') ? undefined : doRestart}
+          onSetup={doSetup}
+          setupLabel={role === 'host' ? 'End online game' : isGuest ? 'Leave' : 'Set up a new game'}
           note={isGuest ? 'Waiting for the host to start another game...' : undefined}
         />
       )}
-
-      <span className="sr-only">Playing as {COLOR_NAME[current.color]}</span>
     </section>
   )
 }

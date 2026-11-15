@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { chooseBotMove } from './bot'
 import { applyMove, createGame, rollDice, type Rng } from './engine'
-import { TOKENS_PER_PLAYER, type GameState, type PlayerConfig } from './types'
+import { NO_HOUSE_RULES, TOKENS_PER_PLAYER, type GameState, type HouseRules, type PlayerConfig } from './types'
 import { SAFE_INDICES } from './board'
 
 /** Small seeded PRNG (mulberry32) so simulations are reproducible. */
@@ -39,9 +39,9 @@ function assertInvariants(g: GameState) {
   expect(new Set(ranks).size).toBe(ranks.length)
 }
 
-function playToEnd(configs: PlayerConfig[], seed: number, maxActions = 20000) {
+export function playToEnd(configs: PlayerConfig[], seed: number, rules: HouseRules = NO_HOUSE_RULES, maxActions = 20000) {
   const rng = seeded(seed)
-  let g = createGame(configs, rng)
+  let g = createGame(configs, rng, rules)
   let actions = 0
   while (g.phase !== 'gameOver' && actions < maxActions) {
     if (g.phase === 'roll') {
@@ -49,7 +49,7 @@ function playToEnd(configs: PlayerConfig[], seed: number, maxActions = 20000) {
     } else {
       const choice = chooseBotMove(g, rng)
       if (!choice) throw new Error('move phase with no legal move')
-      g = applyMove(g, choice.tokenId)
+      g = applyMove(g, choice.tokenId, choice.die)
     }
     assertInvariants(g)
     actions++
@@ -80,6 +80,12 @@ describe('full bot-only games (simulation)', () => {
     const { g } = playToEnd(FOUR, seed)
     expect(g.phase).toBe('gameOver')
     // Every colour appears exactly once in the winners list.
+    expect(new Set(g.winners).size).toBe(4)
+  })
+
+  it.each([21, 22, 23, 24, 25])('finishes a four-player game with roll sixes first (seed %i)', (seed) => {
+    const { g } = playToEnd(FOUR, seed, { rollSixesFirst: true })
+    expect(g.phase).toBe('gameOver')
     expect(new Set(g.winners).size).toBe(4)
   })
 })

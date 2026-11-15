@@ -6,6 +6,8 @@ import { sanitizeName } from '../net/protocol'
 import { MAX_NAME_LENGTH } from '../game/types'
 import { useOnlineStore } from '../store/onlineStore'
 import { SeatList } from './SeatList'
+import { RulesButton } from './RulesSheet'
+import { SettingsButton } from './SettingsSheet'
 
 const NAME_KEY = 'ludo:guestName'
 
@@ -114,6 +116,10 @@ export function JoinScreen() {
 
   return (
     <section className="setup lobby" aria-labelledby="join-title">
+      <div className="setup-tools">
+        <RulesButton />
+        <SettingsButton />
+      </div>
       <h1 id="join-title">Join a Ludo game</h1>
       <p className="tagline">No sign-up. Just a name.</p>
       <div className="join-body">{body}</div>

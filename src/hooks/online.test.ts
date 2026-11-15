@@ -38,14 +38,14 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
   network = new MemoryNetwork()
   configureOnline({ network, baseUrl: () => 'https://ludo.test/' })
-  useGameStore.getState().updateSettings({ autoRoll: false })
+  useGameStore.getState().updateSettings({ autoRoll: false, houseRules: { rollSixesFirst: false } })
 })
 
 afterEach(() => {
   // Unmount the hook before leaving, as the app does, so it never renders without a game.
   cleanup()
   act(() => useOnlineStore.getState().leave())
-  useGameStore.getState().updateSettings({ autoRoll: true })
+  useGameStore.getState().updateSettings({ autoRoll: true, houseRules: { rollSixesFirst: true } })
   vi.useRealTimers()
 })
 
@@ -218,7 +218,7 @@ describe('joining as a guest', () => {
     act(() => useGameStore.getState().updateSettings({ autoMove: true }))
     act(() => vi.advanceTimersByTime(TIMING.AUTO_MOVE_MS + 10))
     await act(tick)
-    expect(intents).toEqual([{ color: 'yellow', seq: 2, intent: { action: 'move', tokenId: expect.any(Number) } }])
+    expect(intents).toEqual([{ color: 'yellow', seq: 2, intent: { action: 'move', tokenId: expect.any(Number), die: 6 } }])
   })
 
   it('asks for a full copy when it notices a missing action', async () => {

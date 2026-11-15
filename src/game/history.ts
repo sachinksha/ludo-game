@@ -27,15 +27,17 @@ export function replay(initial: GameState, actions: GameAction[]): Replay {
 }
 
 /**
- * Index of the human roll that the next undo rewinds to, or null if there is
- * nothing to undo. Undo removes that roll and everything after it, including
- * the human's move and any bot turns, so the human gets back to the same
+ * Index of the action the next undo removes (with everything after it), or
+ * null if there is nothing to undo. Undo goes back one human decision at a
+ * time: first the most recent move, returning to the same roll so a different
+ * token can be chosen; then, on the next undo, the roll itself. Bot turns that
+ * followed are removed with it, so the human is always back at their own
  * decision point.
  */
 export function undoIndex(actions: GameAction[]): number | null {
   for (let i = actions.length - 1; i >= 0; i--) {
     const a = actions[i]
-    if (a.type === 'roll' && a.actor === 'human') return i
+    if (a.actor === 'human' && (a.type === 'roll' || a.type === 'move')) return i
   }
   return null
 }

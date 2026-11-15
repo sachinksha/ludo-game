@@ -4,6 +4,24 @@ export type Color = 'red' | 'green' | 'yellow' | 'blue'
 
 export type PlayerKind = 'human' | 'bot'
 
+/**
+ * Optional house rules, chosen at setup and fixed for the game. They live in
+ * the game state, so replays, saved games and online guests all play by the
+ * same rules. Settings only choose the defaults for the next game.
+ */
+export interface HouseRules {
+  /**
+   * After a 6, roll again straight away (before moving) until a roll isn't a
+   * 6, then use the banked dice one at a time, in any order. Three sixes in a
+   * row still forfeit the turn. A capture or a piece reaching the centre earns
+   * a bonus roll straight away, whose die joins the dice still banked.
+   */
+  rollSixesFirst: boolean
+}
+
+export const NO_HOUSE_RULES: HouseRules = { rollSixesFirst: false }
+export const HOUSE_RULE_KEYS: readonly (keyof HouseRules)[] = ['rollSixesFirst']
+
 /** Number of tokens each player owns. */
 export const TOKENS_PER_PLAYER = 4
 
@@ -85,10 +103,18 @@ export type Phase = 'roll' | 'move' | 'gameOver'
 export interface GameState {
   players: Player[]
   currentIndex: number
-  /** Dice value for the move being made this turn (null when not waiting on a move). */
+  /** The most recent roll this turn, for display (null when the turn has moved on). */
   dice: number | null
+  /**
+   * Dice rolled this turn and not used yet. Normally one die. With the
+   * roll-sixes-first house rule, sixes are banked here first and moves then
+   * use them in any order.
+   */
+  pool: number[]
+  /** House rules for this game, fixed at setup. */
+  rules: HouseRules
   phase: Phase
-  /** Legal choices for the current player. Empty unless phase is 'move'. */
+  /** Legal choices for the current player, grouped by die (pool order), then token. Empty unless phase is 'move'. */
   legalMoves: Move[]
   winners: Color[]
   /** Consecutive sixes rolled this turn (three sixes forfeits the turn). */
@@ -100,6 +126,8 @@ export interface GameState {
 }
 
 export interface Move {
+  /** The die this move uses. With several dice in the pool, moves are listed for each. */
+  die: number
   tokenId: number
   from: TokenState
   to: TokenState
@@ -113,7 +141,8 @@ export type GameEvent =
   | { type: 'move'; move: Move; color: Color }
   | { type: 'capture'; color: Color; victim: Color }
   | { type: 'finish'; color: Color; rank: number }
-  | { type: 'turnPass'; color: Color; reason: 'noMoves' | 'threeSixes' }
+  /** `unused` lists banked dice that were lost (no piece could use them, or three sixes). */
+  | { type: 'turnPass'; color: Color; reason: 'noMoves' | 'threeSixes'; unused?: number[] }
   | { type: 'gameOver'; winners: Color[]; early?: boolean }
   /** A bot took a seat. Names are kept so every screen can explain the change. */
   | { type: 'takeover'; color: Color; from: string; to: string }
@@ -125,7 +154,8 @@ export type GameEvent =
  */
 export type GameAction =
   | { type: 'roll'; value: number; actor: PlayerKind }
-  | { type: 'move'; tokenId: number; actor: PlayerKind }
+  /** `die` picks which banked die the move uses. Optional: the first die that allows it otherwise. */
+  | { type: 'move'; tokenId: number; actor: PlayerKind; die?: number }
   /** Ends the game early, ranking unfinished seats by progress. */
   | { type: 'end'; actor: PlayerKind }
   /**

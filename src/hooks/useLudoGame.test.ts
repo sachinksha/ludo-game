@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { START_INDEX } from '../game/board'
+import { START_INDEX, toAbsoluteIndex } from '../game/board'
 import type { GameState, PlayerConfig, TokenState } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { TIMING, useLudoGame } from './useLudoGame'
@@ -270,5 +270,67 @@ describe('useLudoGame: auto pause', () => {
     renderHook(() => useLudoGame(THREE))
     act(() => window.dispatchEvent(new Event('blur')))
     expect(useGameStore.getState().paused).toBe(false)
+  })
+})
+
+/** Scripted dice: each roll takes the next face. Created once, outside render. */
+function diceSequence(...faces: number[]) {
+  let i = 0
+  return () => (faces[Math.min(i++, faces.length - 1)] - 1) / 6 + 0.01
+}
+
+describe('useLudoGame: roll all your sixes first', () => {
+  beforeEach(() => {
+    useGameStore.getState().updateSettings({ autoRoll: false, houseRules: { rollSixesFirst: true } })
+  })
+  afterEach(() => {
+    useGameStore.getState().updateSettings({ autoRoll: true, undo: false })
+  })
+
+  it('banks a six, then lets the player choose which die each move uses', () => {
+    seedRedTokens({ 0: { kind: 'track', pos: toAbsoluteIndex('red', 10) } })
+    const rng = diceSequence(6, 3)
+    const { result } = renderHook(() => useLudoGame(rng))
+
+    act(() => result.current.roll())
+    act(() => vi.advanceTimersByTime(TIMING.ROLL_MS + TIMING.SETTLE_MS + 10))
+    expect(result.current.game.phase).toBe('roll')
+    expect(result.current.pool).toEqual([6])
+
+    act(() => result.current.roll())
+    act(() => vi.advanceTimersByTime(TIMING.ROLL_MS + TIMING.SETTLE_MS + 10))
+    expect(result.current.pool).toEqual([6, 3])
+    expect(result.current.usableDice).toEqual([6, 3])
+    // The first die is selected: the 6 can move any token.
+    expect(result.current.selectedDie).toBe(6)
+    expect(result.current.pickable).toEqual([0, 1, 2, 3])
+
+    act(() => result.current.selectDie(3))
+    expect(result.current.selectedDie).toBe(3)
+    expect(result.current.pickable).toEqual([0])
+    act(() => result.current.pickToken(0))
+    act(() => vi.advanceTimersByTime(3 * TIMING.STEP_MS + TIMING.SETTLE_MS + 10))
+    const red = useGameStore.getState().game!.players[0]
+    expect(red.tokens[0].state).toEqual({ kind: 'track', pos: toAbsoluteIndex('red', 13) })
+    expect(useGameStore.getState().actions.at(-1)).toEqual({ type: 'move', tokenId: 0, die: 3, actor: 'human' })
+    // The 6 is left, and the choice resets to it.
+    expect(result.current.pool).toEqual([6])
+    expect(result.current.selectedDie).toBe(6)
+  })
+
+  it('holds auto move after an undo, so the undone move is not replayed', () => {
+    useGameStore.getState().updateSettings({ undo: true, houseRules: { rollSixesFirst: false } })
+    seedSingleTokenGame()
+    const { result } = renderHook(() => useLudoGame(THREE))
+    act(() => result.current.roll())
+    for (let t = 0; t < 2000 && useGameStore.getState().actions.length < 2; t += 50) act(() => vi.advanceTimersByTime(50))
+    expect(useGameStore.getState().actions).toHaveLength(2) // the forced move played itself
+    act(() => vi.advanceTimersByTime(TIMING.SETTLE_MS + 10))
+
+    act(() => result.current.undo())
+    expect(useGameStore.getState().actions).toHaveLength(1)
+    act(() => vi.advanceTimersByTime(3000))
+    expect(useGameStore.getState().actions).toHaveLength(1)
+    expect(result.current.humanTurn).toBe(true)
   })
 })

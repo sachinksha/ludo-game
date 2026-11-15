@@ -80,7 +80,7 @@ describe('stacked tokens', () => {
 
 describe('last move trail', () => {
   const players = createGame([{ color: 'red', kind: 'human' }, { color: 'yellow', kind: 'bot' }]).players
-  const move = { tokenId: 0, from: { kind: 'track' as const, pos: 2 }, to: { kind: 'track' as const, pos: 5 }, captured: null, finishes: false }
+  const move = { die: 3, tokenId: 0, from: { kind: 'track' as const, pos: 2 }, to: { kind: 'track' as const, pos: 5 }, captured: null, finishes: false }
 
   it('draws a line through every square passed, starting where the piece left', () => {
     render(<Board players={players} activeColor="red" clickable={[]} onPick={vi.fn()} lastMove={{ color: 'red', move }} />)

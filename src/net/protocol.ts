@@ -13,8 +13,12 @@
 import { COLOR_ORDER } from '../game/board'
 import { MAX_NAME_LENGTH, type Color, type GameAction, type GameState, type PlayerKind } from '../game/types'
 
-/** Bumped whenever the message format changes incompatibly. */
-export const PROTOCOL_VERSION = 1
+/**
+ * Bumped whenever the message format changes incompatibly, so an old guest and
+ * a new host refuse each other clearly instead of misreading moves.
+ * v2: house rules in the game state, and move intents name their die.
+ */
+export const PROTOCOL_VERSION = 2
 
 /** A seat as shown in the lobby and on every guest's screen. */
 export interface SeatView {
@@ -39,7 +43,8 @@ export interface Snapshot {
 }
 
 /** What a guest may ask the host to do on its turn. */
-export type Intent = { action: 'roll' } | { action: 'move'; tokenId: number }
+/** `die` picks which banked die a move uses (roll sixes first). */
+export type Intent = { action: 'roll' } | { action: 'move'; tokenId: number; die?: number }
 
 export type GuestMessage =
   | { t: 'hello'; v: number; token: string; name: string; secret?: string }
@@ -79,7 +84,10 @@ export function parseGuestMessage(raw: unknown): GuestMessage | null {
     case 'intent': {
       if (!isInt(raw.seq, 0, 1_000_000)) return null
       if (raw.action === 'roll') return { t: 'intent', seq: raw.seq, action: 'roll' }
-      if (raw.action === 'move' && isInt(raw.tokenId, 0, 3)) return { t: 'intent', seq: raw.seq, action: 'move', tokenId: raw.tokenId }
+      if (raw.action === 'move' && isInt(raw.tokenId, 0, 3)) {
+        if (raw.die !== undefined && !isInt(raw.die, 1, 6)) return null
+        return { t: 'intent', seq: raw.seq, action: 'move', tokenId: raw.tokenId, ...(raw.die !== undefined ? { die: raw.die } : {}) }
+      }
       return null
     }
     case 'resync':

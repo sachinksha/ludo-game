@@ -7,6 +7,7 @@ import { pathSteps } from '../game/rules'
 import type { Color, GameAction, GameEvent, GameState, Move, Player, TokenState } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { useOnlineStore, type Role } from '../store/onlineStore'
+import type { Intent } from '../net/protocol'
 import { useGuestView } from './useOnline'
 
 /** Timing constants, in milliseconds. */
@@ -69,10 +70,20 @@ function playOutcomeSounds(events: GameEvent[]): void {
   const fanfare = events.some((e) => e.type === 'finish' || e.type === 'gameOver')
   for (const e of events) {
     if (e.type === 'capture') playSound('capture')
-    if (e.type === 'move' && e.move.finishes && !fanfare) playSound('finish')
+    if (e.type === 'move' && e.move.finishes && !fanfare) playSound('centre')
     if (e.type === 'turnPass') playSound('pass')
   }
   if (fanfare) playSound('win')
+}
+
+/**
+ * The die the player is using: their choice if it still has a move, else the
+ * first die in the pool that does. Null outside the move phase.
+ */
+function dieInUse(g: GameState, choice: { seq: number; die: number } | null): number | null {
+  if (g.phase !== 'move') return null
+  if (choice && choice.seq === g.actionSeq && g.legalMoves.some((m) => m.die === choice.die)) return choice.die
+  return g.legalMoves[0]?.die ?? null
 }
 
 export interface LudoController {
@@ -93,6 +104,16 @@ export interface LudoController {
   /** Dice roll by themselves for humans. */
   autoRoll: boolean
   autoMove: boolean
+  /** Dice rolled this turn and not used yet (several only with roll sixes first). */
+  pool: number[]
+  /** The die the next move uses, or null outside the move phase. */
+  selectedDie: number | null
+  /** Distinct dice that can move something now. */
+  usableDice: number[]
+  /** Chooses which banked die the next move uses. */
+  selectDie: (die: number) => void
+  /** Tokens this device's player can move with the selected die. */
+  pickable: number[]
   /** A player who just finished, while their banner is up. */
   celebration: Celebration | null
   /** A short message for everyone at the table, such as a bot taking over a seat. */
@@ -150,6 +171,14 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
   const [lastMove, setLastMove] = useState<{ color: Color; move: Move } | null>(null)
   const noticeId = useRef(0)
   const [endDeclined, setEndDeclined] = useState(false)
+  /**
+   * The action count an undo went back to. Auto roll and auto move hold off at
+   * that position, so an undone move or roll isn't replayed straight away: the
+   * player undid it to decide again.
+   */
+  const [heldAt, setHeldAt] = useState<number | null>(null)
+  /** The die chosen from a pool, tied to its position so it clears itself after any action. */
+  const [dieChoice, setDieChoice] = useState<{ seq: number; die: number } | null>(null)
 
   // Refs let scheduled callbacks read the latest values without stale closures.
   const busyRef = useRef(false)
@@ -238,7 +267,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
       }
 
       if (action.type === 'move') {
-        const move = g.legalMoves.find((m) => m.tokenId === action.tokenId)
+        const move = g.legalMoves.find((m) => m.tokenId === action.tokenId && (action.die === undefined || m.die === action.die))
         if (g.phase !== 'move' || !move) {
           setBusyBoth(false)
           return false
@@ -249,7 +278,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
         steps.forEach((state, i) => {
           later(() => {
             setShownPlayers((prev) => withTokenState(prev, mover.color, action.tokenId, state))
-            playSound('move')
+            playSound(move.from.kind === 'yard' ? 'out' : 'move')
           }, i * TIMING.STEP_MS)
         })
         later(() => {
@@ -283,19 +312,20 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     submit({ type: 'roll', value: rollFor(g, rng, settings.comebackDice), actor: seat.kind })
   }, [rng, submit])
 
-  /** Moves a token for whoever's turn it is (not used by guests). */
+  /** Moves a token with `die` (any banked die that moves it, when left out) for whoever's turn it is. Not used by guests. */
   const playMove = useCallback(
-    (tokenId: number) => {
+    (tokenId: number, die?: number) => {
       const { game: g, paused: isPaused } = useGameStore.getState()
       if (busyRef.current || isPaused || !g || g.phase !== 'move') return
-      if (!g.legalMoves.some((m) => m.tokenId === tokenId)) return
-      submit({ type: 'move', tokenId, actor: g.players[g.currentIndex].kind })
+      const move = g.legalMoves.find((m) => m.tokenId === tokenId && (die === undefined || m.die === die))
+      if (!move) return
+      submit({ type: 'move', tokenId, die: move.die, actor: g.players[g.currentIndex].kind })
     },
     [submit],
   )
 
   /** Guest: asks the host to act for this guest's seat, once per game position. */
-  const sendIntent = useCallback((intent: { action: 'roll' } | { action: 'move'; tokenId: number }) => {
+  const sendIntent = useCallback((intent: Intent) => {
     const { guest } = useOnlineStore.getState()
     const seq = useGameStore.getState().actions.length
     if (!guest || busyRef.current || intentSentAt.current === seq) return
@@ -311,16 +341,25 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     else performRoll()
   }, [isMine, role, sendIntent, performRoll])
 
-  /** UI: move a token for this device's seat. */
+  /** UI: choose which banked die the next move uses. */
+  const selectDie = useCallback((die: number) => {
+    const g = useGameStore.getState().game
+    if (!g || g.phase !== 'move' || !g.legalMoves.some((m) => m.die === die)) return
+    setDieChoice({ seq: g.actionSeq, die })
+  }, [])
+
+  /** UI: move a token for this device's seat, with the selected die. */
   const pickToken = useCallback(
     (tokenId: number) => {
       const g = useGameStore.getState().game
       if (!g || g.phase !== 'move' || !isMine(g.players[g.currentIndex].color)) return
-      if (!g.legalMoves.some((m) => m.tokenId === tokenId)) return
-      if (role === 'guest') sendIntent({ action: 'move', tokenId })
-      else playMove(tokenId)
+      const die = dieInUse(g, dieChoice)
+      const move = g.legalMoves.find((m) => m.tokenId === tokenId && m.die === die)
+      if (!move) return
+      if (role === 'guest') sendIntent({ action: 'move', tokenId, die: move.die })
+      else playMove(tokenId, move.die)
     },
-    [isMine, role, sendIntent, playMove],
+    [isMine, role, sendIntent, playMove, dieChoice],
   )
 
   // Every human has finished while two or more bots play on. Guests never decide this.
@@ -344,6 +383,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
   useEffect(() => {
     if (busy || paused || offerEnd || game.phase === 'gameOver') return
     const seat = game.players[game.currentIndex]
+    const held = heldAt === actions.length
 
     if (role === 'guest') {
       // Guests automate only their own seat, by sending intents; the host does everything else.
@@ -354,7 +394,8 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
       }
       const ids = game.phase === 'move' && autoMove ? autoMoveTokenIds(game.legalMoves) : null
       if (ids) {
-        const id = window.setTimeout(() => sendIntent({ action: 'move', tokenId: pickAny(ids, rng) }), TIMING.AUTO_MOVE_MS)
+        const die = game.legalMoves[0].die
+        const id = window.setTimeout(() => sendIntent({ action: 'move', tokenId: pickAny(ids, rng), die }), TIMING.AUTO_MOVE_MS)
         return () => window.clearTimeout(id)
       }
       return
@@ -368,13 +409,13 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
         clearInbox() // anything else is stale
         if (intent?.kind !== 'intent') return
         if (intent.intent.action === 'roll' && game.phase === 'roll') performRoll()
-        if (intent.intent.action === 'move' && game.phase === 'move') playMove(intent.intent.tokenId)
+        if (intent.intent.action === 'move' && game.phase === 'move') playMove(intent.intent.tokenId, intent.intent.die)
       }, 0)
       return () => window.clearTimeout(id)
     }
 
     if (game.phase === 'roll') {
-      if (seat.kind === 'human' && (seat.remote || !autoRoll)) return
+      if (seat.kind === 'human' && (seat.remote || !autoRoll || held)) return
       const delay = seat.kind === 'bot' ? TIMING.BOT_ROLL_MS : TIMING.AUTO_ROLL_MS
       const id = window.setTimeout(performRoll, delay)
       return () => window.clearTimeout(id)
@@ -384,20 +425,21 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     // move starts from the same spot), play it without a click: always for bots,
     // and for this device's humans when Auto move is on. A remote player's own
     // device decides that for them, so the host waits for their intent.
-    const autoIds = seat.kind === 'bot' || (autoMove && isMine(seat.color)) ? autoMoveTokenIds(game.legalMoves) : null
+    const autoIds = seat.kind === 'bot' || (autoMove && isMine(seat.color) && !held) ? autoMoveTokenIds(game.legalMoves) : null
     if (autoIds) {
-      const id = window.setTimeout(() => playMove(pickAny(autoIds, rng)), TIMING.AUTO_MOVE_MS)
+      const die = game.legalMoves[0].die
+      const id = window.setTimeout(() => playMove(pickAny(autoIds, rng), die), TIMING.AUTO_MOVE_MS)
       return () => window.clearTimeout(id)
     }
 
     if (seat.kind === 'bot') {
       const id = window.setTimeout(() => {
         const choice = chooseBotMove(useGameStore.getState().game!, rng)
-        if (choice) playMove(choice.tokenId)
+        if (choice) playMove(choice.tokenId, choice.die)
       }, TIMING.BOT_MOVE_MS)
       return () => window.clearTimeout(id)
     }
-  }, [game, actions, busy, paused, offerEnd, autoRoll, autoMove, role, inbox, isMine, performRoll, playMove, sendIntent, rng])
+  }, [game, actions, busy, paused, offerEnd, autoRoll, autoMove, role, inbox, isMine, performRoll, playMove, sendIntent, rng, heldAt])
 
   const endEarly = useCallback(() => {
     if (busyRef.current || role === 'guest') return
@@ -417,6 +459,7 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
   const undo = useCallback(() => {
     if (busyRef.current || role !== 'local') return
     useGameStore.getState().undo()
+    setHeldAt(useGameStore.getState().actions.length)
     setShownPlayers(useGameStore.getState().game!.players)
     setRolling(false)
     setLastMove(null)
@@ -457,6 +500,8 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
 
   const seat = game.players[game.currentIndex]
   const local = role === 'local'
+  const selectedDie = dieInUse(game, dieChoice)
+  const mine = isMine(seat.color) && game.phase === 'move'
   return {
     game,
     shownPlayers,
@@ -468,6 +513,11 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
     isMine,
     autoRoll,
     autoMove,
+    pool: game.pool ?? [],
+    selectedDie,
+    usableDice: [...new Set(game.legalMoves.map((m) => m.die))],
+    selectDie,
+    pickable: mine ? [...new Set(game.legalMoves.filter((m) => m.die === selectedDie).map((m) => m.tokenId))] : [],
     celebration,
     notice,
     lastMove,
