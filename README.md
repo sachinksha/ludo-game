@@ -21,6 +21,9 @@ A browser Ludo game built with React, TypeScript, Vite and Zustand. Play on one 
 - **Free software** under the GNU GPL v3 (see [Licence](#licence)).
 - **A learning guide** in [`docs/`](docs/README.md) that uses this codebase to teach React, state management, TypeScript, game loops, system design and testing, aimed at senior and principal frontend interviews.
 
+## Play now (free)
+https://ludo-game-flame.vercel.app/
+
 ## Contents
 
 - [Quick start](#quick-start)
