@@ -156,9 +156,6 @@ legend { font-weight: 600; margin-bottom: 0.5rem; }
 .setup-hint { color: var(--text-muted); font-size: 0.85rem; margin: -0.8rem 0 0; }
 .seat-picker + .setup-hint { max-width: 40rem; margin-left: auto; margin-right: auto; }
 .setup-need-human { margin: 0.6rem 0 0; }
-.setup-option { display: flex; align-items: flex-start; gap: 0.6rem; max-width: 420px; margin: 1.2rem auto 0; text-align: left; cursor: pointer; }
-.setup-option input { margin-top: 0.25rem; width: 1.1rem; height: 1.1rem; accent-color: #2a9d4b; }
-.setup-option-hint { display: block; color: var(--text-muted); font-size: 0.85rem; }
 .setup .primary { margin-top: 1.5rem; padding: 0.7rem 1.6rem; font-size: 1.05rem; }
 
 /* Two-player colour picker */
@@ -521,7 +518,7 @@ html:has(.sheet[open]) { overflow: hidden; }
 .rules-steps li { counter-increment: step; position: relative; padding: 0.45rem 0.6rem 0.45rem 2.5rem; border-radius: 10px; background: var(--surface-2); }
 /* Positioned, not a flex item: flex would split the sentence's text and <b> runs into separate boxes. */
 .rules-steps li::before { content: counter(step); position: absolute; left: 0.55rem; top: 0.45rem; display: grid; place-items: center; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: var(--star); color: #1f2430; font-weight: 700; font-size: 0.85rem; }
-.rules-tag { font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); }
+.rules-note { margin: 0 0 1rem; padding: 0.6rem 0.8rem; border-radius: 10px; background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); font-size: 0.9rem; }
 
 /* ---------- Settings ---------- */
 .settings section { padding: 0.85rem 0; border-bottom: 1px solid var(--line); display: grid; gap: 0.7rem; }
@@ -587,11 +584,8 @@ button.dice-chip { min-width: 44px; min-height: 44px; }
 .mini-die { display: grid; grid-template-columns: repeat(3, 1fr); align-content: space-between; gap: 2px; width: 30px; height: 30px; padding: 4px; border-radius: 7px; background: #fff; border: 1px solid #c9c2b0; }
 .mini-die .pip { width: 100%; height: auto; aspect-ratio: 1; }
 
-/* ---------- Setup: house rules and the Rules/Settings buttons ---------- */
+/* ---------- Setup: the Rules/Settings buttons ---------- */
 .setup-tools { display: flex; justify-content: flex-end; gap: 0.4rem; margin-bottom: 0.5rem; }
-.house-rules { max-width: 460px; margin: 1.2rem auto 0; }
-.house-rules .setup-hint { margin: 0 0 0.6rem; }
-.house-rules .setup-option { margin: 0 0 0.6rem; }
 
 /* ---------- Phones ---------- */
 @media (max-width: 620px) {

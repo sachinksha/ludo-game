@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGame } from '../game/engine'
-import type { PlayerConfig } from '../game/types'
+import { ALL_HOUSE_RULES, NO_HOUSE_RULES, type PlayerConfig } from '../game/types'
 import { DEFAULT_SETTINGS, LAST_SETUP_KEY, SAVED_GAME_KEY, SAVE_VERSION, loadSavedGame, migrateSave, useGameStore } from './gameStore'
 
 const TWO: PlayerConfig[] = [
@@ -13,11 +13,12 @@ const store = () => useGameStore.getState()
 beforeEach(() => {
   store().abort()
   // Most history tests use classic dice; the house rule has its own tests.
-  store().updateSettings({ houseRules: { rollSixesFirst: false } })
+  useGameStore.setState({ newGameRules: NO_HOUSE_RULES })
 })
 
 afterEach(() => {
   store().updateSettings({ ...DEFAULT_SETTINGS })
+  useGameStore.setState({ newGameRules: ALL_HOUSE_RULES })
 })
 
 describe('game store: history', () => {
@@ -152,8 +153,6 @@ describe('game store: settings', () => {
       autoRoll: false,
       autoMove: true,
       undo: false,
-      comebackDice: true,
-      houseRules: { rollSixesFirst: true },
       sound: true,
       soundTheme: 'tabla',
       volume: 0.8,
@@ -161,11 +160,11 @@ describe('game store: settings', () => {
     })
   })
 
-  it('starts new games with the house rules from settings, and the game keeps them', () => {
-    store().updateSettings({ houseRules: { rollSixesFirst: true } })
+  it('starts new games with every house rule, and a game keeps the rules it started with', () => {
+    useGameStore.setState({ newGameRules: ALL_HOUSE_RULES })
     store().start(TWO)
     expect(store().game?.rules).toEqual({ rollSixesFirst: true })
-    store().updateSettings({ houseRules: { rollSixesFirst: false } })
+    useGameStore.setState({ newGameRules: NO_HOUSE_RULES })
     expect(store().game?.rules).toEqual({ rollSixesFirst: true })
   })
 
@@ -224,9 +223,13 @@ describe('game store: saved games', () => {
   })
 
   it('falls back to defaults for unknown or bad saved settings', async () => {
-    window.localStorage.setItem('ludo:settings', JSON.stringify({ volume: 7, soundTheme: 'kazoo', theme: 'purple', autoRoll: false, houseRules: { rollSixesFirst: 'yes' } }))
+    window.localStorage.setItem('ludo:settings', JSON.stringify({ volume: 7, soundTheme: 'kazoo', theme: 'purple', autoRoll: false, comebackDice: false, houseRules: { rollSixesFirst: false } }))
     vi.resetModules()
     const fresh = (await import('./gameStore')).useGameStore.getState()
-    expect(fresh.settings).toMatchObject({ volume: 0.8, soundTheme: 'tabla', theme: 'system', autoRoll: false, houseRules: { rollSixesFirst: true } })
+    expect(fresh.settings).toMatchObject({ volume: 0.8, soundTheme: 'tabla', theme: 'system', autoRoll: false })
+    // Settings saved before the house rules were always on: the old keys are ignored.
+    expect(fresh.settings).not.toHaveProperty('houseRules')
+    expect(fresh.settings).not.toHaveProperty('comebackDice')
+    expect(fresh.newGameRules).toEqual({ rollSixesFirst: true })
   })
 })

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { HOUSE_RULE_KEYS, type Color } from '../game/types'
+import type { Color } from '../game/types'
 import { formatClock, useGameClock } from '../hooks/useGameClock'
 import type { LudoController } from '../hooks/useLudoGame'
 import { useGuestView, useHostView } from '../hooks/useOnline'
@@ -13,7 +13,6 @@ import { DicePool } from './DicePool'
 import { FinishBanner } from './FinishBanner'
 import { GameLog, KeyboardHelp } from './GameLog'
 import { GameMenu } from './GameMenu'
-import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { Icon } from './Icons'
 import { PlayerPanel } from './PlayerPanel'
 import { RulesSheet } from './RulesSheet'
@@ -295,7 +294,6 @@ export function GameScreen({ ludo }: GameScreenProps) {
         onClose={closeSheet}
         role={role}
         canRestart={configs !== null || role === 'host'}
-        rulesText={HOUSE_RULE_KEYS.filter((k) => game.rules?.[k]).map((k) => HOUSE_RULE_TEXT[k].title).join(', ') || 'none'}
         onRestart={fromMenu(requestRestart)}
         onLeave={fromMenu(requestSetup)}
       />

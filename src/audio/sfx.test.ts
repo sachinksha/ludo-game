@@ -85,6 +85,9 @@ class FakeContext {
     const p = () => new FakeParam()
     return Object.assign(new FakeNode(), { threshold: p(), knee: p(), ratio: p(), attack: p(), release: p() })
   }
+  createConvolver() {
+    return Object.assign(new FakeNode(), { buffer: null as unknown, normalize: true })
+  }
   createPeriodicWave() {
     return {}
   }

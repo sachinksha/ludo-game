@@ -185,14 +185,14 @@ Players of this game now expect these. Tick them off in the next game, adapting 
 - [ ] **Names** validated (not blank, unique, case-insensitive), max 12 characters, sanitised for online.
 - [ ] **Pick colours/positions** when not all seats are used (third pick replaces the oldest).
 - [ ] Last setup **remembered** after a game, to restart quickly.
-- [ ] A **House rules** section: game-specific options with clear labels (here: **Comeback dice** and **Roll all your sixes first**). Rules that change legality are stored in `GameState.rules` at creation, never read from settings mid-game.
+- [ ] **House rules** decided up front (here: **Comeback dice** and **Roll all your sixes first**, always on, explained in the Rules sheet). Rules that change legality are stored in `GameState.rules` at creation, never read from settings mid-game. Keep the flags even when a rule becomes the only way to play: old saves and the base-rule tests rely on them.
 - [ ] **Rules** and **Settings** buttons on the setup and join screens too.
 
 ### During play
 - [ ] **Auto roll** switch, off by default (rolling is part of the fun), persisted. Never auto-choose a real decision.
 - [ ] **Auto move** switch, on by default, persisted: play forced moves (only one option, or all options equivalent) automatically. Online, each device automates only its own seat by sending intents; the host never auto-plays a remote human's move.
 - [ ] **Bot personalities** (here balanced/hunter/guardian/racer) assigned randomly per game, ±15% weight jitter, small noise on close calls, and always take obvious wins/captures. The persona label is shown on the bot's panel.
-- [ ] **Comeback assist** for long droughts: fair dice first, small disclosed boost after a grace period, capped, applies to everyone, switchable.
+- [ ] **Comeback assist** for long droughts: fair dice first, small disclosed boost after a grace period, capped, applies to everyone.
 - [ ] **Last-move trail**: faint polyline in the mover's colour along the path just taken, ring on the starting square, dark casing so it shows on same-coloured squares. Set on settle from the `move` event; cleared when the next move starts animating and on undo/redo. View-only state in the hook, not game state.
 - [ ] **Whose turn** is obvious: arrow, highlighted panel, live prompt line.
 - [ ] **Undo/redo** (local only, **off by default** in Settings): one step per undo (the move, then the roll), removing bot turns after it; auto roll/move hold off at an undone position (`heldAt`). Ctrl+Z / Ctrl+Y.
@@ -319,9 +319,9 @@ Rules learned the hard way:
 | Auto roll | Off | Rolling the dice yourself is part of the fun; one switch turns it on for those who want speed |
 | Theme | System | Respect the device; let players override |
 | Auto move | On | Same, for forced moves; some players want to click every move |
-| Roll all your sixes first | On (house rule) | How the game was played growing up; adds planning. Three sixes still forfeit |
+| Roll all your sixes first | Always on (house rule) | How the game was played growing up; adds planning. Three sixes still forfeit |
 | Sound style | Tabla | Shared with Star Hop; four other styles one tap away |
-| Comeback assist | On, disclosed, switchable, same for bots | Fair dice feel unfair in long droughts |
+| Comeback assist | Always on, disclosed, same for bots | Fair dice feel unfair in long droughts |
 | Auto-pause on hidden tab | Local games only | Pausing an online game would freeze everyone |
 | Undo | Off by default; local only; one step at a time | Undo changes how the game plays; rewriting shared history online would confuse others |
 | Invite expiry | 5 minutes, host-enforced | Long enough to share, short enough to limit reuse |

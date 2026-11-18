@@ -7,7 +7,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBotProfile } from '../game/bot'
 import { createGame } from '../game/engine'
-import type { GameAction, PlayerConfig } from '../game/types'
+import { ALL_HOUSE_RULES, NO_HOUSE_RULES, type GameAction, type PlayerConfig } from '../game/types'
 import { GuestSession } from '../net/guestSession'
 import { HostSession } from '../net/hostSession'
 import { parseInvite } from '../net/invite'
@@ -38,14 +38,16 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
   network = new MemoryNetwork()
   configureOnline({ network, baseUrl: () => 'https://ludo.test/' })
-  useGameStore.getState().updateSettings({ autoRoll: false, houseRules: { rollSixesFirst: false } })
+  useGameStore.getState().updateSettings({ autoRoll: false })
+  useGameStore.setState({ newGameRules: NO_HOUSE_RULES })
 })
 
 afterEach(() => {
   // Unmount the hook before leaving, as the app does, so it never renders without a game.
   cleanup()
   act(() => useOnlineStore.getState().leave())
-  useGameStore.getState().updateSettings({ autoRoll: true, houseRules: { rollSixesFirst: true } })
+  useGameStore.getState().updateSettings({ autoRoll: true })
+  useGameStore.setState({ newGameRules: ALL_HOUSE_RULES })
   vi.useRealTimers()
 })
 

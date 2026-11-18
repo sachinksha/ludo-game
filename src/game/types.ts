@@ -5,9 +5,10 @@ export type Color = 'red' | 'green' | 'yellow' | 'blue'
 export type PlayerKind = 'human' | 'bot'
 
 /**
- * Optional house rules, chosen at setup and fixed for the game. They live in
- * the game state, so replays, saved games and online guests all play by the
- * same rules. Settings only choose the defaults for the next game.
+ * House rules, fixed for the game. They live in the game state, so replays,
+ * saved games and online guests all play by the same rules. New games always
+ * use ALL_HOUSE_RULES; the flags remain so older saved games keep the rules
+ * they started with, and tests can play the base rules.
  */
 export interface HouseRules {
   /**
@@ -20,6 +21,8 @@ export interface HouseRules {
 }
 
 export const NO_HOUSE_RULES: HouseRules = { rollSixesFirst: false }
+/** Every house rule on: how the game is played. New games always use these. */
+export const ALL_HOUSE_RULES: HouseRules = { rollSixesFirst: true }
 export const HOUSE_RULE_KEYS: readonly (keyof HouseRules)[] = ['rollSixesFirst']
 
 /** Number of tokens each player owns. */

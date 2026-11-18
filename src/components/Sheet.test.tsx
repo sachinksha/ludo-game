@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS, useGameStore } from '../store/gameStore'
 import { RulesButton } from './RulesSheet'
 import { Sheet } from './Sheet'
 
@@ -72,13 +71,12 @@ describe('Sheet', () => {
 })
 
 describe('Rules', () => {
-  it('opens from the Rules button and shows the comeback dice setting', () => {
-    useGameStore.getState().updateSettings({ ...DEFAULT_SETTINGS, comebackDice: false })
+  it('opens from the Rules button and explains comeback dice', () => {
     render(<RulesButton />)
     fireEvent.click(screen.getByRole('button', { name: 'Rules' }))
     const sheet = screen.getByRole('dialog', { name: 'How to play' })
     expect(sheet).toHaveTextContent('The short version')
-    expect(screen.getByRole('heading', { name: /Comeback dice/ })).toHaveTextContent('Off')
+    expect(screen.getByRole('heading', { name: 'Comeback dice' })).toBeInTheDocument()
     // Numbers come from the engine: fair odds of a six are 1 in 6.
     expect(sheet).toHaveTextContent("normally it's 17%")
   })

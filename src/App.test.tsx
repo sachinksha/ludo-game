@@ -47,7 +47,6 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Game' }))
     const menu = screen.getByRole('dialog', { name: 'Game' })
-    expect(menu).toHaveTextContent('House rules in this game: Roll all your sixes first.')
     fireEvent.click(within(menu).getByRole('button', { name: /Set up a new game/ }))
     expect(await screen.findByRole('button', { name: 'Start game' })).toBeInTheDocument()
   })
@@ -75,13 +74,26 @@ describe('App', () => {
     await waitFor(() => expect(useGameStore.getState().paused).toBe(false))
   })
 
-  it('starts the game with the house rules ticked on setup', () => {
+  it('has no house rule switches on setup: every game plays by the house rules', () => {
     render(<App />)
-    const rule = screen.getByRole('checkbox', { name: /Roll all your sixes first/ })
-    expect(rule).toBeChecked()
-    fireEvent.click(rule)
+    expect(screen.queryByRole('group', { name: 'House rules' })).toBeNull()
+    expect(screen.queryByRole('checkbox')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
-    expect(useGameStore.getState().game?.rules).toEqual({ rollSixesFirst: false })
+    expect(useGameStore.getState().game?.rules).toEqual({ rollSixesFirst: true })
+  })
+
+  it('explains the house rules as the rules of the game, and notes any an older saved game lacks', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+    await screen.findByRole('img', { name: 'Ludo board' })
+    fireEvent.keyDown(window, { key: '?' })
+    const sheet = screen.getByRole('dialog', { name: 'How to play' })
+    expect(sheet).toHaveTextContent('keep going until you roll something else')
+    expect(within(sheet).queryByRole('heading', { name: 'House rules' })).toBeNull()
+    expect(sheet.querySelector('.rules-note')).toBeNull()
+    const g = useGameStore.getState().game!
+    act(() => useGameStore.setState({ game: { ...g, rules: { rollSixesFirst: false } } }))
+    expect(sheet.querySelector('.rules-note')).toHaveTextContent('without: rolling all your sixes first.')
   })
 
   it('shows all four tokens per seat on the board', async () => {

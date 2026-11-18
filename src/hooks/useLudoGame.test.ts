@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { START_INDEX, toAbsoluteIndex } from '../game/board'
-import type { GameState, PlayerConfig, TokenState } from '../game/types'
+import { ALL_HOUSE_RULES, NO_HOUSE_RULES, type GameState, type PlayerConfig, type TokenState } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { TIMING, useLudoGame } from './useLudoGame'
 
@@ -281,7 +281,8 @@ function diceSequence(...faces: number[]) {
 
 describe('useLudoGame: roll all your sixes first', () => {
   beforeEach(() => {
-    useGameStore.getState().updateSettings({ autoRoll: false, houseRules: { rollSixesFirst: true } })
+    useGameStore.getState().updateSettings({ autoRoll: false })
+    useGameStore.setState({ newGameRules: ALL_HOUSE_RULES })
   })
   afterEach(() => {
     useGameStore.getState().updateSettings({ autoRoll: true, undo: false })
@@ -319,7 +320,8 @@ describe('useLudoGame: roll all your sixes first', () => {
   })
 
   it('holds auto move after an undo, so the undone move is not replayed', () => {
-    useGameStore.getState().updateSettings({ undo: true, houseRules: { rollSixesFirst: false } })
+    useGameStore.getState().updateSettings({ undo: true })
+    useGameStore.setState({ newGameRules: NO_HOUSE_RULES })
     seedSingleTokenGame()
     const { result } = renderHook(() => useLudoGame(THREE))
     act(() => result.current.roll())

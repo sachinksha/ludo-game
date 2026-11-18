@@ -306,10 +306,11 @@ export function useLudoGame(rng: Rng = secureRandom): LudoController {
 
   /** Rolls for whoever's turn it is (not used by guests). */
   const performRoll = useCallback(() => {
-    const { game: g, paused: isPaused, settings } = useGameStore.getState()
+    const { game: g, paused: isPaused } = useGameStore.getState()
     if (busyRef.current || isPaused || !g || g.phase !== 'roll') return
     const seat = g.players[g.currentIndex]
-    submit({ type: 'roll', value: rollFor(g, rng, settings.comebackDice), actor: seat.kind })
+    // Comeback dice are always on: part of how the game is played.
+    submit({ type: 'roll', value: rollFor(g, rng, true), actor: seat.kind })
   }, [rng, submit])
 
   /** Moves a token with `die` (any banked die that moves it, when left out) for whoever's turn it is. Not used by guests. */

@@ -198,6 +198,12 @@ export interface PluckSpec {
   /** Jawari buzz amount (sitar bridge), 0 for none. */
   buzz: number
   duration: number
+  /**
+   * How soft the strike is: passes of smoothing over the starting noise burst.
+   * 0 is a hard plectrum, with every frequency at once (a sharp "tick"); a few
+   * passes is a finger or a padded hammer, round from the first instant.
+   */
+  soft?: number
 }
 
 const pluckCache = new WeakMap<Ctx, Map<string, AudioBuffer>>()
@@ -214,7 +220,7 @@ export function pluckBuffer(ac: Ctx, freq: number, s: PluckSpec): AudioBuffer {
     byKey = new Map()
     pluckCache.set(ac, byKey)
   }
-  const key = `${freq.toFixed(2)}|${s.decay}|${s.brightness}|${s.buzz}|${s.duration}`
+  const key = `${freq.toFixed(2)}|${s.decay}|${s.brightness}|${s.buzz}|${s.duration}|${s.soft ?? 0}`
   const cached = byKey.get(key)
   if (cached) return cached
   const sr = ac.sampleRate
@@ -229,6 +235,21 @@ export function renderPluck(out: Float32Array, sampleRate: number, freq: number,
   const period = Math.max(2, Math.round(sampleRate / freq))
   const ring = new Float32Array(period)
   for (let i = 0; i < period; i++) ring[i] = rng() * 2 - 1
+  for (let pass = 0; pass < (s.soft ?? 0); pass++) {
+    // A 3-tap moving average round the ring: a gentle low-pass on the strike.
+    let prev = ring[period - 1]!
+    const first = ring[0]!
+    for (let i = 0; i < period; i++) {
+      const here = ring[i]!
+      ring[i] = (prev + 2 * here + (i + 1 < period ? ring[i + 1]! : first)) / 4
+      prev = here
+    }
+  }
+  if (s.soft) {
+    // Smoothing leaves the burst's average (a DC offset) in place; remove it so the string doesn't thump.
+    const mean = ring.reduce((a, x) => a + x, 0) / period
+    for (let i = 0; i < period; i++) ring[i]! -= mean
+  }
   const a = s.brightness
   let peak = 0
   for (let n = 0; n < out.length; n++) {
@@ -264,6 +285,42 @@ export function pluck(
   src.connect(g).connect(out)
   src.start(t)
   src.stop(t + s.duration)
+}
+
+const reverbs = new WeakMap<Ctx, Map<AudioNode, ConvolverNode>>()
+
+/**
+ * A small, soft room: a convolver whose impulse response is stereo noise
+ * fading out over about a second, darkened as it fades (a one-pole low-pass
+ * that closes over time), the way a real room's air and furnishings soak up
+ * high frequencies first. One per context and output, shared by every sound.
+ */
+export function roomReverb(ac: Ctx, out: AudioNode): ConvolverNode {
+  let byOut = reverbs.get(ac)
+  if (!byOut) {
+    byOut = new Map()
+    reverbs.set(ac, byOut)
+  }
+  const cached = byOut.get(out)
+  if (cached) return cached
+  const sr = ac.sampleRate
+  const length = Math.floor(sr * 1.3)
+  const ir = ac.createBuffer(2, length, sr)
+  for (let ch = 0; ch < 2; ch++) {
+    const data = ir.getChannelData(ch)
+    let lp = 0
+    for (let i = 0; i < length; i++) {
+      const t = i / sr
+      const k = 0.5 * Math.exp(-t / 0.25) + 0.04 // low-pass coefficient: bright at first, dark later
+      lp += k * (Math.random() * 2 - 1 - lp)
+      data[i] = lp * Math.exp(-t / 0.32) * (t < 0.012 ? t / 0.012 : 1)
+    }
+  }
+  const conv = ac.createConvolver()
+  conv.buffer = ir
+  conv.connect(out)
+  byOut.set(out, conv)
+  return conv
 }
 
 /**

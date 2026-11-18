@@ -4,7 +4,7 @@ import { SOUND_THEME_IDS, type SoundThemeId } from '../audio/themes'
 import { describeEvent } from '../game/describe'
 import { applyAction, createGame, type Rng } from '../game/engine'
 import { replay, undoIndex } from '../game/history'
-import { HOUSE_RULE_KEYS, type GameAction, type GameState, type HouseRules, type PlayerConfig } from '../game/types'
+import { ALL_HOUSE_RULES, type GameAction, type GameState, type HouseRules, type PlayerConfig } from '../game/types'
 import { applyTheme, isTheme, type Theme } from '../theme'
 
 // ---------------------------------------------------------------------------
@@ -42,10 +42,6 @@ export interface Settings {
   autoMove: boolean
   /** Show Undo and Redo (local games only). Off by default: undo changes how the game plays. */
   undo: boolean
-  /** Raise the odds of a six for players stuck in the base for a long time. */
-  comebackDice: boolean
-  /** House rules for new games. A game keeps the rules it started with. */
-  houseRules: HouseRules
   /** Sound effects on. */
   sound: boolean
   /** Which instrument voices the sound effects. */
@@ -64,8 +60,6 @@ export const DEFAULT_SETTINGS: Settings = {
   autoRoll: false,
   autoMove: true,
   undo: false,
-  comebackDice: true,
-  houseRules: { rollSixesFirst: true },
   sound: true,
   soundTheme: 'tabla',
   volume: 0.8,
@@ -79,19 +73,15 @@ export const DEFAULT_SETTINGS: Settings = {
  */
 function loadSettings(): Settings {
   const parsed = readJson(SETTINGS_KEY)
-  const settings: Settings = { ...DEFAULT_SETTINGS, houseRules: { ...DEFAULT_SETTINGS.houseRules } }
+  const settings: Settings = { ...DEFAULT_SETTINGS }
   if (!isObject(parsed)) return settings
-  for (const key of ['autoRoll', 'autoMove', 'undo', 'comebackDice', 'sound'] as const) {
+  for (const key of ['autoRoll', 'autoMove', 'undo', 'sound'] as const) {
     const value = parsed[key]
     if (typeof value === 'boolean') settings[key] = value
   }
   if (isTheme(parsed.theme)) settings.theme = parsed.theme
   if (SOUND_THEME_IDS.includes(parsed.soundTheme as SoundThemeId)) settings.soundTheme = parsed.soundTheme as SoundThemeId
   if (typeof parsed.volume === 'number' && parsed.volume >= 0 && parsed.volume <= 1) settings.volume = parsed.volume
-  if (isObject(parsed.houseRules)) {
-    const saved = parsed.houseRules
-    for (const key of HOUSE_RULE_KEYS) if (typeof saved[key] === 'boolean') settings.houseRules[key] = saved[key]
-  }
   return settings
 }
 
@@ -194,8 +184,14 @@ export interface GameStoreState {
   /** Whether the game log is expanded. Hidden by default; kept across games. */
   logOpen: boolean
   settings: Settings
+  /**
+   * House rules for new games. Always every rule in the app: they are how the
+   * game is played, not a choice. Tests set it to play the base rules. Not
+   * saved; a game keeps the rules it started with.
+   */
+  newGameRules: HouseRules
 
-  /** Starts a game with the house rules from settings. `rng` picks bot styles (injectable for tests). */
+  /** Starts a game with `newGameRules`. `rng` picks bot styles (injectable for tests). */
   start: (configs: PlayerConfig[], rng?: Rng) => void
   /** Replaces the game with one received from an online host. Not saved; a local save is kept. */
   load: (initial: GameState, actions: GameAction[], paused: boolean) => void
@@ -256,6 +252,7 @@ function initialState() {
     paused: saved !== null,
     logOpen: false,
     settings,
+    newGameRules: ALL_HOUSE_RULES,
     ...derive(saved?.initial ?? null, saved?.actions ?? []),
   }
 }
@@ -265,7 +262,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
 
   start: (configs, rng) => {
     if (!hasHuman(configs)) return
-    const initial = createGame(configs, rng, get().settings.houseRules)
+    const initial = createGame(configs, rng, get().newGameRules)
     writeJson(LAST_SETUP_KEY, configs)
     set((s) => ({
       configs,

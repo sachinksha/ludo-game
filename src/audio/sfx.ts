@@ -5,9 +5,11 @@
  *
  * Browsers only allow audio after a user gesture, so the AudioContext is created
  * lazily on the first play call. Every sound goes through one master chain:
- * theme level, then the player's volume, then a limiter so stacked sounds
- * (a tabla tihai, a fast walk) never clip.
+ * theme level and tone (a gentle low-pass and a little reverb, per theme), then
+ * the player's volume, then a limiter so stacked sounds (a tabla tihai, a fast
+ * walk) never clip.
  */
+import { roomReverb } from './synth'
 import { SOUND_THEMES, type SoundName, type SoundThemeId } from './themes'
 
 export type { SoundName, SoundThemeId } from './themes'
@@ -60,15 +62,38 @@ export function currentSoundTheme(): SoundThemeId {
   return theme
 }
 
+/**
+ * The node a theme's sounds play into: its level trim, then its low-pass
+ * (`warmth`) to take the edge off, then `dest`, with a send of \`space\` into
+ * a shared room reverb. Exported so the offline loudness check hears exactly
+ * what players hear.
+ */
+export function themeInput(ac: BaseAudioContext, themeId: SoundThemeId, dest: AudioNode): AudioNode {
+  const t = SOUND_THEMES[themeId]
+  const trim = ac.createGain()
+  trim.gain.value = t.level
+  let out: AudioNode = trim
+  if (t.warmth) {
+    const lp = ac.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = t.warmth
+    lp.Q.value = 0.5 // below 0.707: no resonant bump at the cutoff
+    out = trim.connect(lp)
+  }
+  out.connect(dest)
+  if (t.space) {
+    const send = ac.createGain()
+    send.gain.value = t.space
+    out.connect(send).connect(roomReverb(ac, dest))
+  }
+  return trim
+}
+
 /** Plays `name` from `themeId` now, through the master chain. */
 function play(name: SoundName, themeId: SoundThemeId): void {
   const ac = getContext()
   if (!ac || !master) return
-  const t = SOUND_THEMES[themeId]
-  const trim = ac.createGain()
-  trim.gain.value = t.level
-  trim.connect(master)
-  t.sounds[name](ac, trim, ac.currentTime + 0.005)
+  SOUND_THEMES[themeId].sounds[name](ac, themeInput(ac, themeId, master), ac.currentTime + 0.005)
 }
 
 /** A game sound in the chosen theme. Silent when muted. */

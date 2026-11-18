@@ -58,6 +58,14 @@ export interface SoundTheme {
   blurb: string
   /** Level trim so themes sound about equally loud. */
   level: number
+  /**
+   * Low-pass cutoff in Hz, or none. Ears are most sensitive around 2 to 5 kHz,
+   * so energy there sounds sharp and loud even at a modest level; rolling it off
+   * makes a theme sweeter without making it quieter where it matters.
+   */
+  warmth?: number
+  /** How much of the theme goes to the shared room reverb, 0 to 1. A little makes notes bloom. */
+  space?: number
   sounds: Record<SoundName, Voice>
 }
 
@@ -67,32 +75,38 @@ export const SOUND_THEME_IDS: readonly SoundThemeId[] = ['classic', 'tabla', 'ba
 // ---------------------------------------------------------------------------
 // Classic: the original bleeps.
 
+// Softened: sine and triangle waves only (square and sawtooth waves are all
+// buzzy overtones), slightly slower attacks, a darker dice rattle and a little
+// room, so the bleeps chime rather than beep.
+
 const classic: SoundTheme = {
   label: 'Classic',
-  blurb: 'The original game bleeps and chirps.',
-  level: 1.4,
+  blurb: 'Soft game chimes and chirps.',
+  level: 2,
+  warmth: 3200,
+  space: 0.18,
   sounds: {
     roll: (ac, out, t) => {
-      // Dice rattle: a few noise ticks, then a soft thud.
-      for (let i = 0; i < 6; i++) noise(ac, out, t + i * 0.03, { duration: 0.03, gain: 0.25, filter: 'highpass', freq: 1500 })
-      tone(ac, out, t + 0.18, { freq: 180, duration: 0.12, type: 'triangle', gain: 0.25 })
+      // Dice rattle: a few soft ticks, then a gentle thud.
+      for (let i = 0; i < 6; i++) noise(ac, out, t + i * 0.03, { duration: 0.03, gain: 0.2, filter: 'bandpass', freq: 1100, q: 1.2 })
+      tone(ac, out, t + 0.18, { freq: 180, duration: 0.14, type: 'sine', gain: 0.3 })
     },
-    move: (ac, out, t) => tone(ac, out, t, { freq: 520, duration: 0.09, type: 'triangle', gain: 0.18, slideTo: 380 }),
-    out: (ac, out, t) => tone(ac, out, t, { freq: 660, duration: 0.12, gain: 0.16, slideTo: 990 }),
+    move: (ac, out, t) => tone(ac, out, t, { freq: 523, duration: 0.1, type: 'sine', gain: 0.2, attack: 0.012, slideTo: 392 }),
+    out: (ac, out, t) => tone(ac, out, t, { freq: 587, duration: 0.14, gain: 0.17, attack: 0.015, slideTo: 880 }),
     capture: (ac, out, t) => {
-      tone(ac, out, t, { freq: 300, duration: 0.18, type: 'sawtooth', gain: 0.12, slideTo: 90 })
-      tone(ac, out, t + 0.12, { freq: 880, duration: 0.2, type: 'square', gain: 0.08, slideTo: 440 })
+      tone(ac, out, t, { freq: 294, duration: 0.2, type: 'triangle', gain: 0.2, slideTo: 110 })
+      tone(ac, out, t + 0.12, { freq: 659, duration: 0.22, type: 'sine', gain: 0.12, slideTo: 392 })
     },
     centre: (ac, out, t) => {
-      ;[523, 659, 784].forEach((freq, i) => tone(ac, out, t + i * 0.12, { freq, duration: i === 2 ? 0.25 : 0.15, type: 'triangle', gain: 0.2 }))
+      ;[523, 659, 784].forEach((freq, i) => tone(ac, out, t + i * 0.12, { freq, duration: i === 2 ? 0.3 : 0.16, type: 'sine', gain: 0.2, attack: 0.012 }))
     },
     win: (ac, out, t) => {
-      ;[523, 659, 784, 1046, 784, 1046].forEach((freq, i) => tone(ac, out, t + i * 0.14, { freq, duration: 0.22, type: 'triangle', gain: 0.22 }))
+      ;[523, 659, 784, 1046, 784, 1046].forEach((freq, i) => tone(ac, out, t + i * 0.14, { freq, duration: i === 5 ? 0.5 : 0.22, type: 'sine', gain: 0.2, attack: 0.012 }))
     },
     pass: (ac, out, t) => {
       // "Uh-oh": two short falling notes, the second lower and drooping.
-      tone(ac, out, t, { freq: 494, duration: 0.14, type: 'square', gain: 0.08 })
-      tone(ac, out, t + 0.16, { freq: 370, duration: 0.26, type: 'square', gain: 0.08, slideTo: 300 })
+      tone(ac, out, t, { freq: 440, duration: 0.15, type: 'triangle', gain: 0.17 })
+      tone(ac, out, t + 0.17, { freq: 330, duration: 0.28, type: 'triangle', gain: 0.17, slideTo: 277 })
     },
   },
 }
@@ -204,26 +218,29 @@ const tabla: SoundTheme = {
 
 // ---------------------------------------------------------------------------
 // Bansuri: the bamboo flute. Notes come from Raag Bhupali (Sa Re Ga Pa Dha) on
-// E, a common bansuri key. Slides between notes (meend) and late vibrato are
+// A, the key of a longer, mellower bansuri (it was on E, a fourth higher,
+// which put the finish near 1.3 kHz and sounded whistly). Slides between notes (meend) and late vibrato are
 // what make it sound like a bansuri rather than a whistle.
 
-const FLUTE_SA = 329.63
+const FLUTE_SA = 220
 const fluteStep = stepper()
 const fn = (i: number) => scaleNote(FLUTE_SA, i)
 
 const bansuri: SoundTheme = {
   label: 'Bansuri',
   blurb: 'Bamboo flute in Raag Bhupali. A moving piece climbs the raag.',
-  level: 1,
+  level: 1.25,
+  warmth: 3600,
+  space: 0.3,
   sounds: {
     // A murki: a quick ornament of grace notes.
     roll: (ac, out, t) => {
-      ;[2, 1, 0, 1].forEach((n, i) => flute(ac, out, t + i * 0.065, { freq: fn(n + 5), duration: 0.09, gain: 0.13, attack: 0.015, breath: 0.35 }))
+      ;[2, 1, 0, 1].forEach((n, i) => flute(ac, out, t + i * 0.065, { freq: fn(n + 5), duration: 0.09, gain: 0.13, attack: 0.018, breath: 0.15 }))
       flute(ac, out, t + 0.27, { freq: fn(7), duration: 0.22, gain: 0.14, from: fn(6) })
     },
-    move: (ac, out, t) => flute(ac, out, t, { freq: fn(fluteStep(ac.currentTime) % 8), duration: 0.13, gain: 0.13, attack: 0.02, breath: 0.2 }),
+    move: (ac, out, t) => flute(ac, out, t, { freq: fn(fluteStep(ac.currentTime) % 8), duration: 0.13, gain: 0.13, attack: 0.025, breath: 0.1 }),
     out: (ac, out, t) => flute(ac, out, t, { freq: fn(8), from: fn(5), duration: 0.22, gain: 0.14 }),
-    capture: (ac, out, t) => flute(ac, out, t, { freq: fn(10), to: fn(6), duration: 0.32, gain: 0.17, attack: 0.01, breath: 0.5 }),
+    capture: (ac, out, t) => flute(ac, out, t, { freq: fn(10), to: fn(6), duration: 0.34, gain: 0.16, attack: 0.02, breath: 0.2 }),
     centre: (ac, out, t) => {
       ;[5, 6, 7].forEach((n, i) => flute(ac, out, t + i * 0.12, { freq: fn(n), duration: 0.14, gain: 0.14 }))
       flute(ac, out, t + 0.36, { freq: fn(8), duration: 0.45, gain: 0.16, vibrato: 0.008, from: fn(7) })
@@ -234,7 +251,7 @@ const bansuri: SoundTheme = {
       flute(ac, out, t + 1.45, { freq: fn(8), from: fn(9), duration: 0.6, gain: 0.12, vibrato: 0.008 })
     },
     // A sad slide down from Ga to Sa.
-    pass: (ac, out, t) => flute(ac, out, t, { freq: fn(7), to: fn(4), duration: 0.5, gain: 0.14, breath: 0.4 }),
+    pass: (ac, out, t) => flute(ac, out, t, { freq: fn(7), to: fn(4), duration: 0.5, gain: 0.14, breath: 0.15 }),
   },
 }
 
@@ -244,31 +261,35 @@ const bansuri: SoundTheme = {
 // carry the out-of-base and no-move sounds.
 
 const SITAR_SA = 138.6
-const SITAR: PluckSpec = { decay: 0.996, brightness: 0.58, buzz: 0.6, duration: 1.4 }
-const CHIKARI: PluckSpec = { decay: 0.99, brightness: 0.6, buzz: 0.3, duration: 0.5 }
+// Brightness near 0.5 is the darkest, roundest string; the jawari buzz is kept
+// to a shimmer (it was 0.6, which rasped).
+const SITAR: PluckSpec = { decay: 0.996, brightness: 0.52, buzz: 0.28, duration: 1.4, soft: 3 }
+const CHIKARI: PluckSpec = { decay: 0.99, brightness: 0.52, buzz: 0.1, duration: 0.5, soft: 2 }
 const sn = (i: number) => scaleNote(SITAR_SA, i)
 const sitarStep = stepper()
 
 /** Chikari stroke: the high drone strings strummed together. */
-function chikari(ac: Ctx, out: AudioNode, t: number, gain = 0.14) {
-  pluck(ac, out, t, SITAR_SA * 4, { ...CHIKARI, gain })
-  pluck(ac, out, t + 0.008, SITAR_SA * 8, { ...CHIKARI, gain: gain * 0.7 })
+function chikari(ac: Ctx, out: AudioNode, t: number, gain = 0.12) {
+  pluck(ac, out, t, SITAR_SA * 3, { ...CHIKARI, gain })
+  pluck(ac, out, t + 0.008, SITAR_SA * 4, { ...CHIKARI, gain: gain * 0.6 })
 }
 
 const sitar: SoundTheme = {
   label: 'Sitar',
   blurb: 'Plucked strings with the buzzing jawari bridge and slides between notes.',
-  level: 0.65,
+  level: 0.75,
+  warmth: 3000,
+  space: 0.22,
   sounds: {
     roll: (ac, out, t) => {
-      for (let i = 0; i < 4; i++) chikari(ac, out, t + i * 0.07, 0.12)
+      for (let i = 0; i < 4; i++) chikari(ac, out, t + i * 0.07, 0.1)
       pluck(ac, out, t + 0.3, sn(5), { ...SITAR, gain: 0.3 })
     },
     move: (ac, out, t) => pluck(ac, out, t, sn(5 + (sitarStep(ac.currentTime) % 6)), { ...SITAR, duration: 0.5, gain: 0.26 }),
     out: (ac, out, t) => pluck(ac, out, t, sn(6), { ...SITAR, gain: 0.3, bendTo: sn(8), bendTime: 0.12 }),
     capture: (ac, out, t) => {
-      pluck(ac, out, t, sn(0), { ...SITAR, buzz: 0.9, gain: 0.42 })
-      chikari(ac, out, t + 0.09, 0.18)
+      pluck(ac, out, t, sn(0), { ...SITAR, buzz: 0.45, gain: 0.4 })
+      chikari(ac, out, t + 0.09, 0.14)
     },
     centre: (ac, out, t) => {
       ;[5, 6, 7, 8].forEach((n, i) => pluck(ac, out, t + i * 0.12, sn(n), { ...SITAR, gain: 0.28 }))
@@ -294,8 +315,10 @@ const sitar: SoundTheme = {
 // tuned a hair apart, which gives the shimmer; fast repeated strokes (tremolo)
 // and cascading runs are its signature.
 
-const SANTOOR_SA = 587.33
-const SANTOOR: PluckSpec = { decay: 0.994, brightness: 0.72, buzz: 0, duration: 1.1 }
+// Sa on A4 (it was D5, a fourth higher), with a softer hammer: real santoor
+// hammers (mallets) are often padded for exactly this.
+const SANTOOR_SA = 440
+const SANTOOR: PluckSpec = { decay: 0.994, brightness: 0.55, buzz: 0, duration: 1.1, soft: 4 }
 const tn = (i: number) => scaleNote(SANTOOR_SA, i)
 const santoorStep = stepper()
 
@@ -308,7 +331,9 @@ function hammer(ac: Ctx, out: AudioNode, t: number, freq: number, gain = 0.2, du
 const santoor: SoundTheme = {
   label: 'Santoor',
   blurb: 'Hammered strings: a bright shimmer, tremolo and cascading runs.',
-  level: 1.8,
+  level: 1.1,
+  warmth: 3200,
+  space: 0.28,
   sounds: {
     // Tremolo: one note struck rapidly, swelling.
     roll: (ac, out, t) => {
